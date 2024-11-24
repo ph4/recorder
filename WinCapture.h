@@ -24,6 +24,7 @@ public:
     WinCapture(uint16_t channels, uint32_t rate, uint16_t bitsPerSample);
     ~WinCapture() override = default;
 
+
 // protected:
     enum class DeviceState {
         Uninitialized,
@@ -35,29 +36,27 @@ public:
         Stopped
     };
 
+    std::atomic<DeviceState> m_DeviceState { DeviceState::Uninitialized };
+    WAVEFORMATEX m_format{};
     wil::com_ptr_nothrow<IAudioClient> m_AudioClient;
-    WAVEFORMATEX m_format;
+    wil::com_ptr_nothrow<IAudioCaptureClient> m_AudioCaptureClient;
+
     wil::unique_event_nothrow m_ActivateCompleteEvent;
     wil::unique_event_nothrow m_SampleReadyEvent;
     wil::unique_event_nothrow m_CaptureStoppedEvent;
 
-    wil::com_ptr_nothrow<IAudioCaptureClient> m_AudioCaptureClient;
-    UINT32 m_bufferSize;
-    std::atomic<DeviceState> m_DeviceState { DeviceState::Uninitialized };
-    HRESULT m_ActivateResult{ E_UNEXPECTED };
-    std::function<void(const void*, const uint32_t)> m_SampleReadyCallback;
 
+    std::function<void(const void*, const uint32_t)> m_SampleReadyCallback;
 
     HRESULT Initialize();
 
     HRESULT StartCapture(DWORD processId);
     HRESULT StopCapture();
-    HRESULT CaptureLoop();
+    HRESULT CaptureLoop() const;
 
     STDMETHOD(ActivateCompleted)(IActivateAudioInterfaceAsyncOperation *activateOperation) override;
-    HRESULT ActivateAudioInterfaceCompletionHandler(IAudioClient* audioClient);
 
-    HRESULT OnAudioSampleRequested();
+    HRESULT OnAudioSampleRequested() const;
 
     HRESULT ActivateAudioInterface(DWORD pid);
     HRESULT SetDeviceErrorIfFailed(HRESULT errorCode);

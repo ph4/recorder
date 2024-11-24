@@ -8,8 +8,7 @@
 #include <thread>
 
 WinCapture::WinCapture(const uint16_t channels = 1, const uint32_t rate = 48000,
-                       const uint16_t bitsPerSample = 16): m_bufferSize(
-    0) {
+                       const uint16_t bitsPerSample = 16) {
     m_format = {
         .wFormatTag = WAVE_FORMAT_PCM,
         .nChannels = channels,
@@ -29,14 +28,6 @@ HRESULT WinCapture::Initialize() {
 }
 
 
-HRESULT WinCapture::SetDeviceErrorIfFailed(const HRESULT errorCode)
-{
-    if (FAILED(errorCode))
-    {
-        m_DeviceState = DeviceState::Error;
-    }
-    return errorCode;
-}
 
 HRESULT WinCapture::ActivateAudioInterface(const DWORD pid) {
     return SetDeviceErrorIfFailed([&]() -> HRESULT {
@@ -56,12 +47,31 @@ HRESULT WinCapture::ActivateAudioInterface(const DWORD pid) {
                 VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
                 __uuidof(IAudioClient),
                 &activateParams,
-                this,
+                this, // IActivateAudioInterfaceCompletionHandler
                 &activateAudioInterfaceOp));
 
         // Wait for activation completion
 
         m_ActivateCompleteEvent.wait();
+
+        HRESULT hr;
+        wil::com_ptr_nothrow<IUnknown> audioInterface;
+        RETURN_IF_FAILED(activateAudioInterfaceOp->GetActivateResult(&hr, &audioInterface));
+        RETURN_IF_FAILED(hr);
+        RETURN_IF_FAILED(audioInterface.copy_to(&m_AudioClient));
+
+        RETURN_IF_FAILED(
+            m_AudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED,
+                AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+                200000, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, &m_format, nullptr));
+
+        RETURN_IF_FAILED(m_AudioClient->GetService(IID_PPV_ARGS(&m_AudioCaptureClient)));
+
+        // Tell the system which event handle it should signal when an audio buffer is ready to be processed by the client
+        RETURN_IF_FAILED(m_AudioClient->SetEventHandle(m_SampleReadyEvent.get()));
+
+        //Everything is ready
+        m_DeviceState = DeviceState::Initialized;
 
         return S_OK;
     }());
@@ -70,34 +80,6 @@ HRESULT WinCapture::ActivateAudioInterface(const DWORD pid) {
 
 
 HRESULT WinCapture::ActivateCompleted(IActivateAudioInterfaceAsyncOperation *activateOperation) {
-    return m_ActivateResult = SetDeviceErrorIfFailed([&]() -> HRESULT {
-        HRESULT hr = E_UNEXPECTED;
-        wil::com_ptr_nothrow<IUnknown> audioInterface;
-        RETURN_IF_FAILED(activateOperation->GetActivateResult(&hr, &audioInterface));
-        RETURN_IF_FAILED(hr);
-        RETURN_IF_FAILED(audioInterface.copy_to(&m_AudioClient));
-
-        return ActivateAudioInterfaceCompletionHandler(m_AudioClient.get());
-    }());
-}
-
-
-HRESULT WinCapture::ActivateAudioInterfaceCompletionHandler(IAudioClient *audioClient) {
-    RETURN_IF_FAILED(
-        audioClient->Initialize(AUDCLNT_SHAREMODE_SHARED,
-            AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-            200000, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, &m_format, nullptr));
-
-    RETURN_IF_FAILED(audioClient->GetBufferSize(&m_bufferSize));
-    RETURN_IF_FAILED(audioClient->GetService(IID_PPV_ARGS(&m_AudioCaptureClient)));
-
-    // Tell the system which event handle it should signal when an audio buffer is ready to be processed by the client
-    RETURN_IF_FAILED(audioClient->SetEventHandle(m_SampleReadyEvent.get()));
-
-    //Everything is ready
-    m_DeviceState = DeviceState::Initialized;
-
-    // Let ActivateAudioInterface know that m_activateResult has the result of the activation attempt.
     m_ActivateCompleteEvent.SetEvent();
     return S_OK;
 }
@@ -107,20 +89,12 @@ HRESULT WinCapture::ActivateAudioInterfaceCompletionHandler(IAudioClient *audioC
 //
 //  Called when audio device fires m_SampleReadyEvent
 //
-HRESULT WinCapture::OnAudioSampleRequested() {
+HRESULT WinCapture::OnAudioSampleRequested() const {
     UINT32 FramesAvailable = 0;
     BYTE* Data = nullptr;
     DWORD dwCaptureFlags;
     UINT64 u64DevicePosition = 0;
     UINT64 u64QPCPosition = 0;
-    DWORD cbBytesToCapture = 0;
-
-    // If this flag is set, we have already queued up the async call to finialize the WAV header
-    // So we don't want to grab or write any more data that would possibly give us an invalid size
-    if (m_DeviceState == DeviceState::Stopping)
-    {
-        return S_OK;
-    }
 
     // A word on why we have a loop here;
     // Suppose it has been 10 milliseconds or so since the last time
@@ -144,11 +118,7 @@ HRESULT WinCapture::OnAudioSampleRequested() {
     // over and over again until it indicates there are no more packets remaining.
     while (SUCCEEDED(m_AudioCaptureClient->GetNextPacketSize(&FramesAvailable)) && FramesAvailable > 0)
     {
-        cbBytesToCapture = FramesAvailable * m_format.nBlockAlign;
-
-        // Get sample buffer
         RETURN_IF_FAILED(m_AudioCaptureClient->GetBuffer(&Data, &FramesAvailable, &dwCaptureFlags, &u64DevicePosition, &u64QPCPosition));
-
 
         // Write to callback
         if (m_DeviceState != DeviceState::Stopping)
@@ -156,10 +126,7 @@ HRESULT WinCapture::OnAudioSampleRequested() {
             m_SampleReadyCallback(Data, FramesAvailable);
         }
 
-        // Release buffer back
         RETURN_IF_FAILED(m_AudioCaptureClient->ReleaseBuffer(FramesAvailable));
-
-        // Increase the size of our 'data' chunk.  m_cbDataSize needs to be accurate
     }
 
     return S_OK;
@@ -177,10 +144,11 @@ HRESULT WinCapture::StartCapture(const DWORD processId) {
 HRESULT WinCapture::StopCapture() {
     m_DeviceState = DeviceState::Stopping;
     m_CaptureStoppedEvent.wait();
+    m_DeviceState = DeviceState::Stopped;
     return S_OK;
 }
 
-HRESULT WinCapture::CaptureLoop() {
+HRESULT WinCapture::CaptureLoop() const {
     while (m_DeviceState != DeviceState::Stopping) {
         if (!m_SampleReadyEvent.wait()) break;
         if FAILED(OnAudioSampleRequested()) break;
@@ -188,4 +156,13 @@ HRESULT WinCapture::CaptureLoop() {
     }
     m_CaptureStoppedEvent.SetEvent();
     return S_OK;
+}
+
+HRESULT WinCapture::SetDeviceErrorIfFailed(const HRESULT errorCode)
+{
+    if (FAILED(errorCode))
+    {
+        m_DeviceState = DeviceState::Error;
+    }
+    return errorCode;
 }
