@@ -7,46 +7,53 @@
 
 #include <thread>
 
-WinCapture::WinCapture(const uint16_t channels = 1, const uint32_t rate = 48000,
-                       const uint16_t bitsPerSample = 16) {
+WinCapture::WinCapture(const FormatConfig format, const uint32_t bufferSizeNs,
+                       const CallBackT &callback, const DWORD pid) {
+    m_SampleReadyCallback = callback;
     m_format = {
         .wFormatTag = WAVE_FORMAT_PCM,
-        .nChannels = channels,
-        .nSamplesPerSec = rate,
-        .wBitsPerSample = bitsPerSample,
+        .nChannels = format.channels,
+        .nSamplesPerSec = format.sampleRate,
+        .wBitsPerSample = format.bitsPerSample,
     };
     m_format.nBlockAlign = m_format.nChannels * m_format.wBitsPerSample / 8;
     m_format.nAvgBytesPerSec = m_format.nSamplesPerSec * m_format.nBlockAlign;
-}
+    m_bufferSizeNs = bufferSizeNs;
 
+    m_pid = pid;
+}
 
 HRESULT WinCapture::Initialize() {
     RETURN_IF_FAILED(m_ActivateCompleteEvent.create(wil::EventOptions::None));
-    RETURN_IF_FAILED(m_SampleReadyEvent.create(wil::EventOptions::None));
+    RETURN_IF_FAILED(m_BufferReadyEvent.create(wil::EventOptions::None));
     RETURN_IF_FAILED(m_CaptureStoppedEvent.create(wil::EventOptions::None));
     return S_OK;
 }
 
+WAVEFORMATEX* WinCapture::GetFormat() {
+    return &m_format;
+}
 
 
-HRESULT WinCapture::ActivateAudioInterface(const DWORD pid) {
+
+HRESULT WinCapture::ActivateAudioInterface() {
     return SetDeviceErrorIfFailed([&]() -> HRESULT {
         AUDIOCLIENT_ACTIVATION_PARAMS params = {};
         params.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
         params.ProcessLoopbackParams.ProcessLoopbackMode = PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
-        params.ProcessLoopbackParams.TargetProcessId = pid;
+        params.ProcessLoopbackParams.TargetProcessId = m_pid;
 
-        PROPVARIANT activateParams = {};
-        activateParams.vt = VT_BLOB;
-        activateParams.blob.cbSize = sizeof(params);
-        activateParams.blob.pBlobData = reinterpret_cast<BYTE *>(&params);
+        PROPVARIANT activate_params = {};
+        activate_params.vt = VT_BLOB;
+        activate_params.blob.cbSize = sizeof(params);
+        activate_params.blob.pBlobData = reinterpret_cast<BYTE *>(&params);
 
         wil::com_ptr_nothrow<IActivateAudioInterfaceAsyncOperation> activateAudioInterfaceOp;
         RETURN_IF_FAILED(
             ActivateAudioInterfaceAsync(
                 VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
                 __uuidof(IAudioClient),
-                &activateParams,
+                &activate_params,
                 this, // IActivateAudioInterfaceCompletionHandler
                 &activateAudioInterfaceOp));
 
@@ -63,12 +70,12 @@ HRESULT WinCapture::ActivateAudioInterface(const DWORD pid) {
         RETURN_IF_FAILED(
             m_AudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED,
                 AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-                200000, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, &m_format, nullptr));
+                m_bufferSizeNs, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, &m_format, nullptr));
 
         RETURN_IF_FAILED(m_AudioClient->GetService(IID_PPV_ARGS(&m_AudioCaptureClient)));
 
         // Tell the system which event handle it should signal when an audio buffer is ready to be processed by the client
-        RETURN_IF_FAILED(m_AudioClient->SetEventHandle(m_SampleReadyEvent.get()));
+        RETURN_IF_FAILED(m_AudioClient->SetEventHandle(m_BufferReadyEvent.get()));
 
         //Everything is ready
         m_DeviceState = DeviceState::Initialized;
@@ -90,54 +97,40 @@ HRESULT WinCapture::ActivateCompleted(IActivateAudioInterfaceAsyncOperation *act
 //  Called when audio device fires m_SampleReadyEvent
 //
 HRESULT WinCapture::OnAudioSampleRequested() const {
-    UINT32 FramesAvailable = 0;
-    BYTE* Data = nullptr;
-    DWORD dwCaptureFlags;
-    UINT64 u64DevicePosition = 0;
-    UINT64 u64QPCPosition = 0;
+    UINT32 num_frames = 0;
+    BYTE* data = nullptr;
+    DWORD flags;
+    UINT64 dev_pos = 0;
+    UINT64 qpc_pos = 0;
 
-    // A word on why we have a loop here;
-    // Suppose it has been 10 milliseconds or so since the last time
-    // this routine was invoked, and that we're capturing 48000 samples per second.
-    //
-    // The audio engine can be reasonably expected to have accumulated about that much
-    // audio data - that is, about 480 samples.
-    //
-    // However, the audio engine is free to accumulate this in various ways:
+    // The audio engine is free to accumulate buffer in various ways:
     // a. as a single packet of 480 samples, OR
     // b. as a packet of 80 samples plus a packet of 400 samples, OR
     // c. as 48 packets of 10 samples each.
-    //
-    // In particular, there is no guarantee that this routine will be
-    // run once for each packet.
-    //
+
     // So every time this routine runs, we need to read ALL the packets
     // that are now available;
-    //
-    // We do this by calling IAudioCaptureClient::GetNextPacketSize
-    // over and over again until it indicates there are no more packets remaining.
-    while (SUCCEEDED(m_AudioCaptureClient->GetNextPacketSize(&FramesAvailable)) && FramesAvailable > 0)
+
+    while (SUCCEEDED(m_AudioCaptureClient->GetNextPacketSize(&num_frames)) && num_frames > 0)
     {
-        RETURN_IF_FAILED(m_AudioCaptureClient->GetBuffer(&Data, &FramesAvailable, &dwCaptureFlags, &u64DevicePosition, &u64QPCPosition));
+        RETURN_IF_FAILED(m_AudioCaptureClient->GetBuffer(&data, &num_frames, &flags, &dev_pos, &qpc_pos));
 
         // Write to callback
         if (m_DeviceState != DeviceState::Stopping)
         {
-            m_SampleReadyCallback(Data, FramesAvailable);
+            m_SampleReadyCallback(data, num_frames);
         }
 
-        RETURN_IF_FAILED(m_AudioCaptureClient->ReleaseBuffer(FramesAvailable));
+        RETURN_IF_FAILED(m_AudioCaptureClient->ReleaseBuffer(num_frames));
     }
 
     return S_OK;
 }
 
-HRESULT WinCapture::StartCapture(const DWORD processId) {
-    RETURN_IF_FAILED(Initialize());
-    RETURN_IF_FAILED(ActivateAudioInterface(processId));
+HRESULT WinCapture::StartCapture() {
     RETURN_IF_FAILED(m_AudioClient->Start());
-
     m_DeviceState = DeviceState::Capturing;
+
     return S_OK;
 }
 
@@ -150,7 +143,7 @@ HRESULT WinCapture::StopCapture() {
 
 HRESULT WinCapture::CaptureLoop() const {
     while (m_DeviceState != DeviceState::Stopping) {
-        if (!m_SampleReadyEvent.wait()) break;
+        if (!m_BufferReadyEvent.wait()) break;
         if FAILED(OnAudioSampleRequested()) break;
 
     }

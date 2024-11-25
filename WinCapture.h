@@ -9,8 +9,6 @@
 #include <Audioclient.h>
 #include <functional>
 #include <mmdeviceapi.h>
-#include <guiddef.h>
-#include <mfapi.h>
 
 #include <wrl/implements.h>
 #include <wil/com.h>
@@ -18,14 +16,27 @@
 
 using namespace Microsoft::WRL;
 
+struct FormatConfig {
+    uint16_t channels;
+    uint32_t sampleRate;
+    uint16_t bitsPerSample;
+};
+
 class WinCapture : public RuntimeClass<RuntimeClassFlags<ClassicCom>, FtmBase,
             IActivateAudioInterfaceCompletionHandler> {
+    using CallBackT = void(*)(const void *, uint32_t);
 public:
-    WinCapture(uint16_t channels, uint32_t rate, uint16_t bitsPerSample);
-    ~WinCapture() override = default;
+    WinCapture(FormatConfig format, uint32_t bufferSizeNs, const CallBackT &callback, DWORD pid);
 
+    HRESULT Initialize();
+    WAVEFORMATEX* GetFormat();
+    HRESULT ActivateAudioInterface();
 
-// protected:
+    HRESULT StartCapture();
+    HRESULT StopCapture();
+    HRESULT CaptureLoop() const;
+
+protected:
     enum class DeviceState {
         Uninitialized,
         Error,
@@ -38,30 +49,23 @@ public:
 
     std::atomic<DeviceState> m_DeviceState { DeviceState::Uninitialized };
     WAVEFORMATEX m_format{};
+    uint32_t m_bufferSizeNs;
+    uint32_t m_pid;
     wil::com_ptr_nothrow<IAudioClient> m_AudioClient;
     wil::com_ptr_nothrow<IAudioCaptureClient> m_AudioCaptureClient;
 
     wil::unique_event_nothrow m_ActivateCompleteEvent;
-    wil::unique_event_nothrow m_SampleReadyEvent;
+    wil::unique_event_nothrow m_BufferReadyEvent;
     wil::unique_event_nothrow m_CaptureStoppedEvent;
 
 
     std::function<void(const void*, const uint32_t)> m_SampleReadyCallback;
 
-    HRESULT Initialize();
-
-    HRESULT StartCapture(DWORD processId);
-    HRESULT StopCapture();
-    HRESULT CaptureLoop() const;
-
     STDMETHOD(ActivateCompleted)(IActivateAudioInterfaceAsyncOperation *activateOperation) override;
 
     HRESULT OnAudioSampleRequested() const;
 
-    HRESULT ActivateAudioInterface(DWORD pid);
     HRESULT SetDeviceErrorIfFailed(HRESULT errorCode);
-
-    HRESULT InitializeLoopbackCapture();
 
 };
 

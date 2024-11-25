@@ -5,6 +5,8 @@
 #include <semaphore>
 #include <thread>
 
+#include <mfapi.h>
+
 #include "WinCapture.h"
 
 #define FORMAT sizeof(uint16_t)
@@ -35,31 +37,41 @@ void data_callback(const void* data, const uint32_t frameCount)
     }
 }
 
-int main(int argc, char const *argv[]) {
+int main(const int argc, char const *argv[]) {
     const uint32_t pid = std::stoi(argc > 1 ? argv[1] : "0");
     std::cout << "Process ID: " << pid << std::endl;
 
     file = std::fopen("test.wav", "wb");
 
-    WinCapture wc(CHANNELS, SAMPLE_RATE, FORMAT * 8);
+    auto fc = FormatConfig {
+        .channels = CHANNELS,
+        .sampleRate = SAMPLE_RATE,
+        .bitsPerSample = 16,
+    };
 
+    auto wc = WinCapture(fc, 200000, data_callback, pid);
+
+    const auto format = wc.GetFormat();
     const auto data_size = total_write * static_cast<DWORD>(FORMAT) * CHANNELS;
     const DWORD header[] = {
         FCC('RIFF'),
         data_size + 44 - 8, // header size - first two fields
         FCC('WAVE'),
         FCC('fmt '),
-        sizeof(wc.m_format),
+        sizeof(*format),
     };
     std::fwrite(header, sizeof(header), 1, file);
-    std::fwrite(&wc.m_format, sizeof(wc.m_format), 1, file);
+    std::fwrite(format, sizeof(*format), 1, file);
     const DWORD data[] = {FCC('data'), data_size};
     std::fwrite(data, sizeof(data), 1, file);
 
-    wc.m_SampleReadyCallback = data_callback;
-    auto hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    if (!hr)
-        hr = wc.StartCapture(pid);
+    const auto hr = [&] {
+        RETURN_IF_FAILED(wc.Initialize());
+        RETURN_IF_FAILED(wc.ActivateAudioInterface());
+        RETURN_IF_FAILED(wc.StartCapture());
+        return S_OK;
+    }();
+
     if (FAILED(hr))
     {
         wil::unique_hlocal_string message;
@@ -68,15 +80,16 @@ int main(int argc, char const *argv[]) {
         std::wcout << L"Failed to start capture\n0x" << std::hex << hr << L": " << message.get() << L"\n";
         std::wcout.flush();
         return hr;
-    }
-    std::thread thread([&] {
-        RETURN_IF_FAILED(wc.CaptureLoop());
-        return S_OK;
-    });
+    } else {
+        std::thread thread([&] {
+            RETURN_IF_FAILED(wc.CaptureLoop());
+            return S_OK;
+        });
 
-    write_complete.acquire();
-    RETURN_IF_FAILED(wc.StopCapture());
+        write_complete.acquire();
+        RETURN_IF_FAILED(wc.StopCapture());
+        thread.join();
+    }
     std::fclose(file);
-    thread.join();
     return 0;
 }
