@@ -69,8 +69,8 @@ HRESULT WinCapture::ActivateAudioInterface() {
 
         RETURN_IF_FAILED(
             m_AudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED,
-                AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-                m_bufferSizeNs, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, &m_format, nullptr));
+                AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
+                m_bufferSizeNs, m_bufferSizeNs, &m_format, nullptr));
 
         RETURN_IF_FAILED(m_AudioClient->GetService(IID_PPV_ARGS(&m_AudioCaptureClient)));
 
