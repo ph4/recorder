@@ -7,6 +7,11 @@
 
 #include <mfapi.h>
 
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks-inl.h>
+
 #include "WinCapture.h"
 
 #define FORMAT sizeof(uint16_t)
@@ -21,12 +26,28 @@ std::binary_semaphore write_complete{0};
 void data_callback(const void* data, const uint32_t frameCount)
 {
     const auto audio_in = static_cast<const int16_t*>(data);
-    std::cout << ".";
-    for (int i = 0; i < frameCount; i++) {
+    static std::string output;
+    output.resize(frameCount/2 + 1);
+    assert(frameCount % 2 == 0);
+    for (int i = 0; i < frameCount; i += 2) {
+        const auto val = audio_in[i] + audio_in[i + 1];
+        output[i / 2] = [&] {
+            switch (abs(val)) {
+                case 0:
+                    return '_';
+                case 1:
+                    return '.';
+                case 2:
+                    return ':';
+                default:
+                    return '|';
+            }
+        }();
     }
 
+    SPDLOG_TRACE("{}", output);
+
     if (total_write > 0) {
-        std::cout << frameCount << std::endl;;
         const auto to_write = frameCount < total_write ? frameCount : total_write;
         const auto written = std::fwrite(audio_in, sizeof(int16_t), to_write, file);
         assert(written == to_write);
@@ -37,9 +58,17 @@ void data_callback(const void* data, const uint32_t frameCount)
     }
 }
 
+
+
 int main(const int argc, char const *argv[]) {
+    const auto logger = spdlog::stdout_color_mt("main");
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%s] [%^%l%$] %v");
+    logger->set_level(spdlog::level::trace);
+
+    set_default_logger(logger);
+
     const uint32_t pid = std::stoi(argc > 1 ? argv[1] : "0");
-    std::cout << "Process ID: " << pid << std::endl;
+    SPDLOG_INFO("Pid = {}", pid);
 
     file = std::fopen("test.wav", "wb");
 
@@ -66,6 +95,7 @@ int main(const int argc, char const *argv[]) {
     std::fwrite(data, sizeof(data), 1, file);
 
     const auto hr = [&] {
+        RETURN_IF_FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
         RETURN_IF_FAILED(wc.Initialize());
         RETURN_IF_FAILED(wc.ActivateAudioInterface());
         RETURN_IF_FAILED(wc.StartCapture());
