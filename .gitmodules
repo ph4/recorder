@@ -1,6 +1,0 @@
-[submodule "wil"]
-	path = wil
-	url = https://github.com/microsoft/wil.git
-[submodule "spdlog"]
-	path = spdlog
-	url = https://github.com/gabime/spdlog.git
