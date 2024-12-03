@@ -12,6 +12,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks-inl.h>
 
+#include "hwid.hpp"
 #include "WinCapture.h"
 
 #define FORMAT sizeof(uint16_t)
@@ -19,7 +20,7 @@
 #define CHANNELS 1
 
 FILE* file;
-uint32_t total_write = SAMPLE_RATE * 5;
+uint32_t total_write = SAMPLE_RATE * 0.1;
 
 std::binary_semaphore write_complete{0};
 
@@ -62,10 +63,12 @@ void data_callback(const void* data, const uint32_t frameCount)
 
 int main(const int argc, char const *argv[]) {
     const auto logger = spdlog::stdout_color_mt("main");
-    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%s] [%^%l%$] %v");
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%s::%!] [%^%l%$] %v");
     logger->set_level(spdlog::level::trace);
-
     set_default_logger(logger);
+
+    auto uuid = get_uuid();
+    SPDLOG_INFO("Machine UUID = {}", uuid);
 
     const uint32_t pid = std::stoi(argc > 1 ? argv[1] : "0");
     SPDLOG_INFO("Pid = {}", pid);
