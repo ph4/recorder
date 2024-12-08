@@ -20,13 +20,28 @@ FetchContent_Declare(
         GIT_REPOSITORY https://github.com/h5p9sl/hmac_sha256.git
 )
 
-FetchContent_MakeAvailable(wil spdlog hmac_sha256)
-
-add_executable(recorder
-        src/main.cpp src/WinCapture.cpp src/hwid.hpp
+FetchContent_Declare(
+        opus
+        GIT_REPOSITORY https://github.com/xiph/opus.git
+        GIT_TAG v1.5.2
 )
 
-target_link_libraries(recorder WIL::WIL spdlog::spdlog hmac_sha256)
+FetchContent_Declare(
+        ogg
+        GIT_REPOSITORY https://github.com/xiph/ogg.git
+        GIT_TAG v1.3.5
+)
+
+FetchContent_MakeAvailable(wil spdlog hmac_sha256 opus ogg)
+
+add_definitions(-DNOMINMAX)
+add_executable(recorder
+        src/main.cpp src/WinCapture.cpp src/hwid.hpp
+        src/OggOpusWriter.hpp
+        src/ChunkedRingBuffer.hpp
+)
+
+target_link_libraries(recorder WIL::WIL spdlog::spdlog hmac_sha256 Opus::opus Ogg::ogg)
 
 target_link_libraries(recorder
         mmdevapi.lib

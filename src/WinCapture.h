@@ -24,7 +24,7 @@ struct FormatConfig {
 
 class WinCapture : public RuntimeClass<RuntimeClassFlags<ClassicCom>, FtmBase,
             IActivateAudioInterfaceCompletionHandler> {
-    using CallBackT = void(*)(const void *, uint32_t);
+    using CallBackT = std::function<void(const void *, const uint32_t)>;
 public:
     WinCapture(FormatConfig format, uint32_t bufferSizeNs, const CallBackT &callback, DWORD pid);
 
