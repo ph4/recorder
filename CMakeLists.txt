@@ -31,8 +31,13 @@ FetchContent_Declare(
         GIT_REPOSITORY https://github.com/xiph/ogg.git
         GIT_TAG v1.3.5
 )
+FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.15.2
+)
 
-FetchContent_MakeAvailable(wil spdlog hmac_sha256 opus ogg)
+FetchContent_MakeAvailable(wil spdlog hmac_sha256 opus ogg googletest)
 
 add_definitions(-DNOMINMAX)
 add_executable(recorder
@@ -48,3 +53,8 @@ target_link_libraries(recorder
         wbemuuid.lib
 )
 
+project(recorder-tests)
+add_executable(recorder-tests
+        tests.cpp
+)
+target_link_libraries(recorder-tests GTest::gtest)
