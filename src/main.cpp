@@ -47,7 +47,7 @@ int main(const int argc, char const *argv[]) {
         };
 
     auto wstream = std::ofstream("test.ogg", std::ios::binary | std::ios::trunc | std::ios::out);
-    auto writer = OggOpusWriter<std::ofstream, 20, SAMPLE_RATE>(std::move(wstream), 48);
+    auto writer = OggOpusWriter<std::ofstream, 20, SAMPLE_RATE, CHANNELS>(std::move(wstream), 48);
     if (auto res = writer.Init()) {
         SPDLOG_ERROR("Failed to initialize OggOpusWriter: {}", res);
         return -1;
@@ -55,13 +55,9 @@ int main(const int argc, char const *argv[]) {
 
     auto data_callback = [&writer](const void *data, const uint32_t frameCount) {
         const auto audio_in = static_cast<const int16_t *>(data);
-        static auto buffer = ChunkedBuffer<int16_t, writer.FRAME_SIZE * 2, 3>();
-        buffer.PushData(std::span(audio_in, frameCount));
         if (total_write_ms > 0) {
-            while (buffer.n_chunks()) {
-                writer.Push(buffer.ReadChunk());
-                total_write_ms -= 20;
-            }
+            writer.Push(std::span(audio_in, frameCount * CHANNELS));
+            total_write_ms -= frameCount * 1000 / SAMPLE_RATE;
         } else if (total_write_ms == 0) {
             write_complete.release();
             total_write_ms = 0;
