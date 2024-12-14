@@ -18,6 +18,9 @@
 #include "WinCapture.h"
 #include "ChunkedRingBuffer.hpp"
 
+import IAudioSource;
+
+
 #define FORMAT sizeof(uint16_t)
 #define SAMPLE_RATE 16000
 #define CHANNELS 2
@@ -29,22 +32,21 @@ std::binary_semaphore write_complete{0};
 
 int main(const int argc, char const *argv[]) {
     const auto logger = spdlog::stdout_color_mt("main");
-        logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%s::%!] [%^%l%$] %v");
-        logger->set_level(spdlog::level::trace);
-        set_default_logger(logger);
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%s::%!] [%^%l%$] %v");
+    logger->set_level(spdlog::level::trace);
+    set_default_logger(logger);
 
-        auto uuid = get_uuid();
-        SPDLOG_INFO("Machine UUID = {}", uuid);
+    auto uuid = get_uuid();
+    SPDLOG_INFO("Machine UUID = {}", uuid);
 
-        const uint32_t pid = std::stoi(argc > 1 ? argv[1] : "0");
-        SPDLOG_INFO("Pid = {}", pid);
+    const uint32_t pid = std::stoi(argc > 1 ? argv[1] : "0");
+    SPDLOG_INFO("Pid = {}", pid);
 
 
-        auto fc = FormatConfig{
-            .channels = CHANNELS,
-            .sampleRate = SAMPLE_RATE,
-            .bitsPerSample = 16,
-        };
+    auto fc = recorder::AudioFormat{
+        .channels = CHANNELS,
+        .sampleRate = SAMPLE_RATE,
+    };
 
     auto wstream = std::ofstream("test.ogg", std::ios::binary | std::ios::trunc | std::ios::out);
     auto writer = OggOpusWriter<std::ofstream, 20, SAMPLE_RATE, CHANNELS>(std::move(wstream), 48);
@@ -53,11 +55,10 @@ int main(const int argc, char const *argv[]) {
         return -1;
     }
 
-    auto data_callback = [&writer](const void *data, const uint32_t frameCount) {
-        const auto audio_in = static_cast<const int16_t *>(data);
+    auto data_callback = [&writer](std::span<int16_t> data) {
         if (total_write_ms > 0) {
-            writer.Push(std::span(audio_in, frameCount * CHANNELS));
-            total_write_ms -= frameCount * 1000 / SAMPLE_RATE;
+            writer.Push(data);
+            total_write_ms -= data.size() / CHANNELS * 1000 / SAMPLE_RATE;
         } else if (total_write_ms == 0) {
             write_complete.release();
             total_write_ms = 0;

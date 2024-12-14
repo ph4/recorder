@@ -2,19 +2,67 @@
 // Created by pavel on 11/21/2024.
 //
 
+
 #include <audioclientactivationparams.h>
 #include "WinCapture.h"
 
 #include <thread>
+#include <stdexcept>
 
-WinCapture::WinCapture(const FormatConfig format, const uint32_t bufferSizeNs,
+#include "util.hpp"
+
+
+using SourceState =  recorder::IAudioSource<int16_t>::State ;
+SourceState WinCapture::GetState() {
+    switch (m_DeviceState) {
+        case DeviceState::Uninitialized:
+            return Uninitialized;
+        case DeviceState::Initialized:
+        case DeviceState::Stopped:
+        case DeviceState::Stopping:
+            return Stopped;
+        case DeviceState::Capturing:
+        case DeviceState::Starting:
+            return Playing;
+        case DeviceState::Error: // TODO Do something about that
+            return Uninitialized;
+        default:
+            throw std::runtime_error("Unexpected DeviceState");
+    }
+}
+
+void WinCapture::SetCallback(const CallBackT callback) {
+    m_SampleReadyCallback = callback;
+}
+
+void WinCapture::Play() {
+    if (m_DeviceState == DeviceState::Initialized || m_DeviceState == DeviceState::Stopped) {
+        if (const auto res = StartCapture()) {
+            throw std::runtime_error("StartCapture failed: " + hresult_to_string(res));
+        }
+    }
+}
+
+void WinCapture::Stop() {
+    if (m_DeviceState == DeviceState::Capturing) {
+        if (const auto res = StopCapture()) {
+            throw std::runtime_error("StopCapute failed: " + hresult_to_string(res));
+        }
+    }
+}
+
+uint32_t WinCapture::GetPid() {
+    return m_pid;
+}
+
+WinCapture::WinCapture(const recorder::AudioFormat format, const uint32_t bufferSizeNs,
                        const CallBackT &callback, const DWORD pid) {
     m_SampleReadyCallback = callback;
     m_format = {
         .wFormatTag = WAVE_FORMAT_PCM,
         .nChannels = format.channels,
         .nSamplesPerSec = format.sampleRate,
-        .wBitsPerSample = format.bitsPerSample,
+        .wBitsPerSample = 16,
     };
     m_format.nBlockAlign = m_format.nChannels * m_format.wBitsPerSample / 8;
     m_format.nAvgBytesPerSec = m_format.nSamplesPerSec * m_format.nBlockAlign;
@@ -118,7 +166,7 @@ HRESULT WinCapture::OnAudioSampleRequested() const {
         // Write to callback
         if (m_DeviceState != DeviceState::Stopping)
         {
-            m_SampleReadyCallback(data, num_frames);
+            m_SampleReadyCallback(std::span<int16_t>(reinterpret_cast<int16_t*>(data), num_frames * m_format.nChannels));
         }
 
         RETURN_IF_FAILED(m_AudioCaptureClient->ReleaseBuffer(num_frames));

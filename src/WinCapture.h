@@ -13,20 +13,23 @@
 #include <wrl/implements.h>
 #include <wil/com.h>
 #include <wil/result.h>
+#include <span>
+
 
 using namespace Microsoft::WRL;
 
-struct FormatConfig {
-    uint16_t channels;
-    uint32_t sampleRate;
-    uint16_t bitsPerSample;
-};
+import IAudioSource;
 
 class WinCapture : public RuntimeClass<RuntimeClassFlags<ClassicCom>, FtmBase,
-            IActivateAudioInterfaceCompletionHandler> {
-    using CallBackT = std::function<void(const void *, const uint32_t)>;
+            IActivateAudioInterfaceCompletionHandler>, recorder::IProcessAudioSource<int16_t> {
 public:
-    WinCapture(FormatConfig format, uint32_t bufferSizeNs, const CallBackT &callback, DWORD pid);
+    State GetState() override;
+    void SetCallback(CallBackT callback) override;
+    void Play() override;
+    void Stop() override;
+    uint32_t GetPid() override;
+
+    WinCapture(recorder::AudioFormat format, uint32_t bufferSizeNs, const CallBackT &callback, DWORD pid);
 
     HRESULT Initialize();
     WAVEFORMATEX* GetFormat();
@@ -59,7 +62,7 @@ protected:
     wil::unique_event_nothrow m_CaptureStoppedEvent;
 
 
-    std::function<void(const void*, const uint32_t)> m_SampleReadyCallback;
+    CallBackT m_SampleReadyCallback;
 
     STDMETHOD(ActivateCompleted)(IActivateAudioInterfaceAsyncOperation *activateOperation) override;
 

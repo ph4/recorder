@@ -12,7 +12,6 @@
 #include <opus.h>
 #include <random>
 #include <ogg/ogg.h>
-#include <span>
 #include <variant>
 #include <spdlog/spdlog.h>
 
@@ -44,7 +43,7 @@ private:
     W writer_;
     const int32_t bitrate_kbps_;
 
-    consteval uint32_t max_packets_in_page_ = 64;
+    const uint32_t max_packets_in_page_ = 64;
     uint32_t packets_in_page_ = 0;
     uint32_t packet_no_ = 0;
     uint32_t granule_pos_ = 0;
@@ -172,7 +171,7 @@ private:
             return res;
         }
 
-        if (++max_packets_in_page_ > 32 || last) {
+        if (++packets_in_page_ > max_packets_in_page_ || last) {
             packets_in_page_ = 0;
             if (res = Flush(); res != 0) {
                 SPDLOG_ERROR("Flush failed: {}", res);
