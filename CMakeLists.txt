@@ -39,11 +39,17 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(wil spdlog hmac_sha256 opus ogg googletest)
 
+set(CXX_SCAN_FOR_MODULES ON)
 add_definitions(-DNOMINMAX)
 add_executable(recorder
-        src/main.cpp src/WinCapture.cpp src/hwid.hpp
+        src/main.cpp src/hwid.hpp
         src/OggOpusWriter.hpp
         src/ChunkedRingBuffer.hpp
+)
+target_sources(recorder
+  PUBLIC
+    FILE_SET all_my_modules TYPE CXX_MODULES FILES
+    src/IAudioSource.ixx
 )
 
 target_link_libraries(recorder WIL::WIL spdlog::spdlog hmac_sha256 Opus::opus Ogg::ogg)
