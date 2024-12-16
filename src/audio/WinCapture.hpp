@@ -2,61 +2,113 @@
 // Created by pavel on 11/21/2024.
 //
 
+#ifndef WINCAPTURE_H
+#define WINCAPTURE_H
 
+#include <atomic>
+#include <Audioclient.h>
+#include <functional>
+#include <mmdeviceapi.h>
 #include <audioclientactivationparams.h>
-#include "WinCapture.h"
 
-#include <thread>
+#include <wrl/implements.h>
+#include <wil/com.h>
+#include <wil/result.h>
+#include <span>
 #include <stdexcept>
 
 #include "util.hpp"
 
+import AudioSource;
 
-using SourceState =  recorder::IAudioSource<int16_t>::State ;
-SourceState WinCapture::GetState() {
-    switch (m_DeviceState) {
-        case DeviceState::Uninitialized:
-            return Uninitialized;
-        case DeviceState::Initialized:
-        case DeviceState::Stopped:
-        case DeviceState::Stopping:
-            return Stopped;
-        case DeviceState::Capturing:
-        case DeviceState::Starting:
-            return Playing;
-        case DeviceState::Error: // TODO Do something about that
-            return Uninitialized;
-        default:
-            throw std::runtime_error("Unexpected DeviceState");
-    }
-}
+using namespace Microsoft::WRL;
 
-void WinCapture::SetCallback(const CallBackT callback) {
+
+template<typename S>
+class WinCapture : public RuntimeClass<RuntimeClassFlags<ClassicCom>, FtmBase,
+                       IActivateAudioInterfaceCompletionHandler> {
+public:
+    WinCapture(const WinCapture &) = delete;
+    WinCapture & operator=(const WinCapture &) = delete;
+
+    WinCapture(WinCapture &&) = default;
+    WinCapture & operator=(WinCapture &&) = default;
+
+    using CallBackT = std::function<void(std::span<S>)>;
+
+    WinCapture(recorder::audio::AudioFormat format, uint32_t bufferSizeNs, const CallBackT &callback, DWORD pid);
+
+    HRESULT Initialize();
+
+    WAVEFORMATEX *GetFormat();
+
+    HRESULT ActivateAudioInterface();
+
+    HRESULT StartCapture();
+
+    HRESULT StopCapture();
+
+    HRESULT CaptureLoop() const;
+
+    enum class DeviceState {
+        Uninitialized,
+        Error,
+        Initialized,
+        Starting,
+        Capturing,
+        Stopping,
+        Stopped
+    };
+
+    DeviceState GetDeviceState() const;
+
+    uint32_t GetPid() const;
+
+    void SetCallback(const CallBackT& callback);
+
+protected:
+    DeviceState m_DeviceState{DeviceState::Uninitialized};
+    WAVEFORMATEX m_format{};
+    uint32_t m_bufferSizeNs;
+    uint32_t m_pid;
+    wil::com_ptr_nothrow<IAudioClient> m_AudioClient;
+    wil::com_ptr_nothrow<IAudioCaptureClient> m_AudioCaptureClient;
+
+    wil::unique_event_nothrow m_ActivateCompleteEvent;
+    wil::unique_event_nothrow m_BufferReadyEvent;
+    wil::unique_event_nothrow m_CaptureStoppedEvent;
+
+
+    CallBackT m_SampleReadyCallback;
+
+    STDMETHOD(ActivateCompleted)(IActivateAudioInterfaceAsyncOperation *activateOperation) override;
+
+    HRESULT OnAudioSampleRequested() const;
+
+    HRESULT SetDeviceErrorIfFailed(HRESULT errorCode);
+
+
+};
+
+
+template<typename S>
+void WinCapture<S>::SetCallback(const CallBackT& callback) {
     m_SampleReadyCallback = callback;
 }
 
-void WinCapture::Play() {
-    if (m_DeviceState == DeviceState::Initialized || m_DeviceState == DeviceState::Stopped) {
-        if (const auto res = StartCapture()) {
-            throw std::runtime_error("StartCapture failed: " + hresult_to_string(res));
-        }
-    }
+template<typename S>
+typename WinCapture<S>::DeviceState WinCapture<S>::GetDeviceState() const {
+    return m_DeviceState;
 }
 
-void WinCapture::Stop() {
-    if (m_DeviceState == DeviceState::Capturing) {
-        if (const auto res = StopCapture()) {
-            throw std::runtime_error("StopCapute failed: " + hresult_to_string(res));
-        }
-    }
-}
-
-uint32_t WinCapture::GetPid() {
+template<typename S>
+uint32_t WinCapture<S>::GetPid() const {
     return m_pid;
 }
 
-WinCapture::WinCapture(const recorder::AudioFormat format, const uint32_t bufferSizeNs,
-                       const CallBackT &callback, const DWORD pid) {
+template<typename S>
+WinCapture<S>::WinCapture(const recorder::audio::AudioFormat format, const uint32_t bufferSizeNs,
+                          const CallBackT &callback, const DWORD pid) {
     m_SampleReadyCallback = callback;
     m_format = {
         .wFormatTag = WAVE_FORMAT_PCM,
@@ -71,20 +123,22 @@ WinCapture::WinCapture(const recorder::AudioFormat format, const uint32_t buffer
     m_pid = pid;
 }
 
-HRESULT WinCapture::Initialize() {
+template<typename S>
+HRESULT WinCapture<S>::Initialize() {
     RETURN_IF_FAILED(m_ActivateCompleteEvent.create(wil::EventOptions::None));
     RETURN_IF_FAILED(m_BufferReadyEvent.create(wil::EventOptions::None));
     RETURN_IF_FAILED(m_CaptureStoppedEvent.create(wil::EventOptions::None));
     return S_OK;
 }
 
-WAVEFORMATEX* WinCapture::GetFormat() {
+template<typename S>
+WAVEFORMATEX *WinCapture<S>::GetFormat() {
     return &m_format;
 }
 
 
-
-HRESULT WinCapture::ActivateAudioInterface() {
+template<typename S>
+HRESULT WinCapture<S>::ActivateAudioInterface() {
     return SetDeviceErrorIfFailed([&]() -> HRESULT {
         AUDIOCLIENT_ACTIVATION_PARAMS params = {};
         params.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
@@ -130,11 +184,11 @@ HRESULT WinCapture::ActivateAudioInterface() {
 
         return S_OK;
     }());
-
 };
 
 
-HRESULT WinCapture::ActivateCompleted(IActivateAudioInterfaceAsyncOperation *activateOperation) {
+template<typename S>
+HRESULT WinCapture<S>::ActivateCompleted(IActivateAudioInterfaceAsyncOperation *activateOperation) {
     m_ActivateCompleteEvent.SetEvent();
     return S_OK;
 }
@@ -144,9 +198,11 @@ HRESULT WinCapture::ActivateCompleted(IActivateAudioInterfaceAsyncOperation *act
 //
 //  Called when audio device fires m_SampleReadyEvent
 //
-HRESULT WinCapture::OnAudioSampleRequested() const {
+
+template<typename S>
+HRESULT WinCapture<S>::OnAudioSampleRequested() const {
     UINT32 num_frames = 0;
-    BYTE* data = nullptr;
+    BYTE *data = nullptr;
     DWORD flags;
     UINT64 dev_pos = 0;
     UINT64 qpc_pos = 0;
@@ -159,14 +215,13 @@ HRESULT WinCapture::OnAudioSampleRequested() const {
     // So every time this routine runs, we need to read ALL the packets
     // that are now available;
 
-    while (SUCCEEDED(m_AudioCaptureClient->GetNextPacketSize(&num_frames)) && num_frames > 0)
-    {
+    while (SUCCEEDED(m_AudioCaptureClient->GetNextPacketSize(&num_frames)) && num_frames > 0) {
         RETURN_IF_FAILED(m_AudioCaptureClient->GetBuffer(&data, &num_frames, &flags, &dev_pos, &qpc_pos));
 
         // Write to callback
-        if (m_DeviceState != DeviceState::Stopping)
-        {
-            m_SampleReadyCallback(std::span<int16_t>(reinterpret_cast<int16_t*>(data), num_frames * m_format.nChannels));
+        if (m_DeviceState != DeviceState::Stopping) {
+            m_SampleReadyCallback(
+                std::span<int16_t>(reinterpret_cast<int16_t *>(data), num_frames * m_format.nChannels));
         }
 
         RETURN_IF_FAILED(m_AudioCaptureClient->ReleaseBuffer(num_frames));
@@ -175,35 +230,38 @@ HRESULT WinCapture::OnAudioSampleRequested() const {
     return S_OK;
 }
 
-HRESULT WinCapture::StartCapture() {
+template<typename S>
+HRESULT WinCapture<S>::StartCapture() {
     RETURN_IF_FAILED(m_AudioClient->Start());
     m_DeviceState = DeviceState::Capturing;
 
     return S_OK;
 }
 
-HRESULT WinCapture::StopCapture() {
+template<typename S>
+HRESULT WinCapture<S>::StopCapture() {
     m_DeviceState = DeviceState::Stopping;
     m_CaptureStoppedEvent.wait();
     m_DeviceState = DeviceState::Stopped;
     return S_OK;
 }
 
-HRESULT WinCapture::CaptureLoop() const {
+template<typename S>
+HRESULT WinCapture<S>::CaptureLoop() const {
     while (m_DeviceState != DeviceState::Stopping) {
         if (!m_BufferReadyEvent.wait()) break;
         if FAILED(OnAudioSampleRequested()) break;
-
     }
     m_CaptureStoppedEvent.SetEvent();
     return S_OK;
 }
 
-HRESULT WinCapture::SetDeviceErrorIfFailed(const HRESULT errorCode)
-{
-    if (FAILED(errorCode))
-    {
+template<typename S>
+HRESULT WinCapture<S>::SetDeviceErrorIfFailed(const HRESULT errorCode) {
+    if (FAILED(errorCode)) {
         m_DeviceState = DeviceState::Error;
     }
     return errorCode;
 }
+
+#endif //WINCAPTURE_H
