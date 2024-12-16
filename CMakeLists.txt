@@ -4,6 +4,7 @@ project(recorder)
 set(CMAKE_CXX_STANDARD 20)
 
 include(FetchContent)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 FetchContent_Declare(
         wil
         GIT_REPOSITORY https://github.com/microsoft/wil.git
@@ -45,11 +46,15 @@ add_executable(recorder
         src/main.cpp src/hwid.hpp
         src/OggOpusWriter.hpp
         src/ChunkedRingBuffer.hpp
+        src/audio/WinCapture.hpp
+        src/audio/WinAudioSource.ixx
 )
+target_include_directories(recorder PRIVATE src)
 target_sources(recorder
   PUBLIC
     FILE_SET all_my_modules TYPE CXX_MODULES FILES
-    src/IAudioSource.ixx
+        src/audio/AudioSource.ixx
+        src/audio/WinAudioSource.ixx
 )
 
 target_link_libraries(recorder WIL::WIL spdlog::spdlog hmac_sha256 Opus::opus Ogg::ogg)

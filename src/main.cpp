@@ -15,10 +15,11 @@
 
 #include "hwid.hpp"
 #include "OggOpusWriter.hpp"
-#include "WinCapture.h"
+#include "audio/WinCapture.hpp"
 #include "ChunkedRingBuffer.hpp"
 
-import IAudioSource;
+import AudioSource;
+import WinAudioSource;
 
 
 #define FORMAT sizeof(uint16_t)
@@ -39,14 +40,11 @@ int main(const int argc, char const *argv[]) {
     auto uuid = get_uuid();
     SPDLOG_INFO("Machine UUID = {}", uuid);
 
-    const uint32_t pid = std::stoi(argc > 1 ? argv[1] : "0");
+    const uint32_t pid = argc > 1 ? std::stoi(argv[1]) : 0;
+    total_write_ms = argc > 2 ? std::stoi(argv[2]) : 1000;
     SPDLOG_INFO("Pid = {}", pid);
+    SPDLOG_INFO("total_write_ms = {}", total_write_ms);
 
-
-    auto fc = recorder::AudioFormat{
-        .channels = CHANNELS,
-        .sampleRate = SAMPLE_RATE,
-    };
 
     auto wstream = std::ofstream("test.ogg", std::ios::binary | std::ios::trunc | std::ios::out);
     auto writer = OggOpusWriter<std::ofstream, 20, SAMPLE_RATE, CHANNELS>(std::move(wstream), 48);
@@ -65,43 +63,24 @@ int main(const int argc, char const *argv[]) {
         }
     };
 
-    auto wc = WinCapture(fc, 200000, data_callback, pid);
 
+    auto fc = recorder::audio::AudioFormat{
+        .channels = CHANNELS,
+        .sampleRate = SAMPLE_RATE,
+    };
 
-    const auto hr = [&] {
-        RETURN_IF_FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
-        RETURN_IF_FAILED(wc.Initialize());
-        RETURN_IF_FAILED(wc.ActivateAudioInterface());
-        RETURN_IF_FAILED(wc.StartCapture());
-        return S_OK;
-    }();
+    auto source = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, pid);
+    source->Play();
+    write_complete.acquire();
+    source->Stop();
 
-    if (FAILED(hr)) {
-        wil::unique_hlocal_string message;
-        FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-                       nullptr, hr,
-                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<PWSTR>(&message), 0, nullptr);
-        std::wcout << L"Failed to start capture\n0x" << std::hex << hr << L": " << message.get() << L"\n";
-        std::wcout.flush();
-        return hr;
+    auto res = writer.Finalize();
+    if (std::holds_alternative<int>(res)) {
+        SPDLOG_ERROR("Failed to finalize writer: {}", std::get<int>(res));
+        return -1;
     } else {
-        std::thread thread([&] {
-            RETURN_IF_FAILED(wc.CaptureLoop());
-            return S_OK;
-        });
-
-        write_complete.acquire();
-        RETURN_IF_FAILED(wc.StopCapture());
-        thread.join();
-        auto res = writer.Finalize();
-        if (std::holds_alternative<int>(res)) {
-            SPDLOG_ERROR("Failed to finalize writer: {}", std::get<int>(res));
-            return -1;
-        }
-        else {
-            auto w = std::move(std::get<0>(res));
-            w.close();
-        }
+        auto w = std::move(std::get<0>(res));
+        w.close();
     }
     return 0;
 }
