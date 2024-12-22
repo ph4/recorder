@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.29)
 project(recorder)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
@@ -48,11 +49,14 @@ add_executable(recorder
         src/ChunkedRingBuffer.hpp
         src/audio/WinCapture.hpp
         src/audio/WinAudioSource.ixx
+        src/audio/AudioSink.ixx
+        src/audio/RingBuffer.ixx
 )
 target_include_directories(recorder PRIVATE src)
 target_sources(recorder
   PUBLIC
     FILE_SET all_my_modules TYPE CXX_MODULES FILES
+        src/audio/RingBuffer.ixx
         src/audio/AudioSource.ixx
         src/audio/WinAudioSource.ixx
 )
@@ -67,5 +71,10 @@ target_link_libraries(recorder
 project(recorder-tests)
 add_executable(recorder-tests
         tests.cpp
+)
+target_sources(recorder-tests
+  PUBLIC
+    FILE_SET all_my_modules TYPE CXX_MODULES FILES
+        src/audio/RingBuffer.ixx
 )
 target_link_libraries(recorder-tests GTest::gtest)
