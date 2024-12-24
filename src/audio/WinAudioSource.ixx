@@ -17,46 +17,16 @@ import AudioSource;
 namespace recorder::audio::windows {
     using namespace recorder::audio;
 
-
     template<typename S>
-    class SilenceActivityStatus final : public AudioActivityStatus<S> {
-        bool active = false;
-    public:
-        SilenceActivityStatus(const std::function<void(AudioSourceActivation)> &onActivated,
-                              const std::function<void(AudioSourceDeactivation)> &onDeactivated)
-            : AudioActivityStatus<S>(onActivated, onDeactivated) { }
-        bool isActive() override {
-            return active;
-        };
-
-        bool checkNewAudio(std::span<S> audio) override {
-            // Windows sometimes has samples with the value of 1 on silent streams
-            auto has_audio = std::none_of(audio.begin(), audio.end(), [&](auto s) { return s > 1; });
-            if (!active && has_audio ) {
-                active = true;
-                AudioSourceActivation data{
-                    .timestamp = std::chrono::utc_clock::now(),
-                    .activationSource = std::string("silence"),
-                    .metadata = std::nullopt,
-                };
-                this->onActivated(data);
-            } else if (active && !has_audio) {
-                active = false;
-                this->onDeactivated(AudioSourceDeactivation{});
-            }
-            return active;
-        };
-    };
-
-
-    template<typename S>
-    class WinAudioSource : public ProcessAudioSource<S> {
+    class WinAudioSource : public ProcessAudioSource<S>, SignalMonitorSimple {
         bool started_ = false;
         std::mutex started_mutex_{};
         std::condition_variable started_condition_{};
+        SignalMonitorCallbacks callbacks_;
+        bool active_ = false;
 
         wil::com_ptr<WinCapture<S>> capture_;
-        std::thread thread_;
+        std::thread thread_{};
         void process() {
             {
                 std::unique_lock lock(started_mutex_);
@@ -64,18 +34,35 @@ namespace recorder::audio::windows {
             }
             capture_->CaptureLoop();
         }
+
+        bool checkNewAudio(std::span<S> audio) {
+            // Windows sometimes has samples with the value of 1 on silent streams
+            auto has_audio = std::none_of(audio.begin(), audio.end(), [&](auto s) { return s > 1; });
+            if (!active_ && has_audio ) {
+                active_ = true;
+                AudioSourceActivation data{
+                    .timestamp = std::chrono::utc_clock::now(),
+                    .activationSource = std::string("silence"),
+                    .metadata = std::nullopt,
+                };
+                this->callbacks_.onActivated(data);
+            } else if (active_ && !has_audio) {
+                active_ = false;
+                this->callbacks_.onDeactivated(AudioSourceDeactivation{});
+            }
+            return active_;
+        };
         using ProcessAudioSource<S>::ProcessAudioSource;
     public:
         explicit WinAudioSource(wil::com_ptr<WinCapture<S>> capture,
-                                std::unique_ptr<AudioActivityStatus<S> > activationChecker)
-            : ProcessAudioSource<S>(std::move(activationChecker)),
-              capture_(std::move(capture)),
-              thread_(std::thread(&WinAudioSource::process, this)) {
+                                const SignalMonitorCallbacks &callbacks)
+            : ProcessAudioSource<S>(), callbacks_(callbacks),
+              capture_(std::move(capture))
+               {
             if (capture_->GetDeviceState() != WinCapture<S>::DeviceState::Initialized) {
                 throw std::runtime_error(
                     "WinAudioSource: Device should be in initialized state (not started or stopped)");
             }
-            this->activationChecker = std::move(activationChecker);
         }
 
         using State = typename ProcessAudioSource<S>::State;
@@ -101,11 +88,15 @@ namespace recorder::audio::windows {
         };
 
         void SetCallback(const CallBackT cb) override {
-            capture_->SetCallback(cb);
+            capture_->SetCallback([this, cb = std::move(cb)](std::span<S> audio) {
+                this->checkNewAudio(audio);
+                cb(audio);
+            });
         };
 
         void Play() override {
             if (capture_->GetDeviceState() == DeviceState::Initialized || capture_->GetDeviceState() == DeviceState::Stopped) {
+                thread_ = std::thread(&WinAudioSource::process, this);
                 if (const auto res = capture_->StartCapture()) {
                     throw std::runtime_error("StartCapture failed: " + hresult_to_string(res));
                 }
@@ -135,17 +126,20 @@ namespace recorder::audio::windows {
             // capture_.Release();
         }
 
+        bool HasSignal() override {
+            return active_;
+        };
     };
 
     template class WinAudioSource<int16_t>;
 
     export template<typename S>
-    std::unique_ptr<WinAudioSource<S>> get_source_for_pid(AudioFormat format, typename WinCapture<S>::CallBackT callback, uint32_t pid) {
-        if (pid == 0) {
+    std::unique_ptr<WinAudioSource<S>> get_source_for_pid(AudioFormat format, typename WinCapture<S>::CallBackT callback, uint32_t pid, bool loopback) {
+        if ((loopback && pid == 0) || (!loopback && pid != 0)) {
             throw std::invalid_argument("pid is invalid");
         }
 
-        ComPtr<WinCapture<S>> wcp = Microsoft::WRL::Make<WinCapture<S>>(format, 200000, callback, pid);
+        ComPtr<WinCapture<S>> wcp = Microsoft::WRL::Make<WinCapture<S>>(format, 200000, callback, pid, loopback);
 
         wil::com_ptr wc(wcp.Detach());
 
@@ -153,9 +147,9 @@ namespace recorder::audio::windows {
         THROW_IF_FAILED(wc->Initialize());
         THROW_IF_FAILED(wc->ActivateAudioInterface());
 
-        auto ac = std::make_unique<SilenceActivityStatus<S>>([](AudioSourceActivation){}, [](AudioSourceDeactivation){});
+        auto cbs = SignalMonitorCallbacks([](AudioSourceActivation){}, [](AudioSourceDeactivation){});
 
-        return std::make_unique<WinAudioSource<S>> (std::move(wc), std::move(ac));
+        return std::make_unique<WinAudioSource<S>> (std::move(wc), cbs);
     }
 
 }

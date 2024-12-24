@@ -5,24 +5,23 @@
 #ifndef WINCAPTURE_H
 #define WINCAPTURE_H
 
-#include <atomic>
-#include <Audioclient.h>
+#include <span>
 #include <functional>
+
+#include <Audioclient.h>
+#include <initguid.h>
 #include <mmdeviceapi.h>
 #include <audioclientactivationparams.h>
 
 #include <wrl/implements.h>
 #include <wil/com.h>
 #include <wil/result.h>
-#include <span>
-#include <stdexcept>
 
 #include "util.hpp"
 
 import AudioSource;
 
 using namespace Microsoft::WRL;
-
 
 template<typename S>
 class WinCapture : public RuntimeClass<RuntimeClassFlags<ClassicCom>, FtmBase,
@@ -36,7 +35,11 @@ public:
 
     using CallBackT = std::function<void(std::span<S>)>;
 
-    WinCapture(recorder::audio::AudioFormat format, uint32_t bufferSizeNs, const CallBackT &callback, DWORD pid);
+    WinCapture(recorder::audio::AudioFormat format,
+               uint32_t bufferSizeNs,
+               const CallBackT &callback,
+               DWORD pid,
+               bool loopback);
 
     HRESULT Initialize();
 
@@ -80,6 +83,7 @@ protected:
 
 
     CallBackT m_SampleReadyCallback;
+    bool m_loopback;
 
     STDMETHOD(ActivateCompleted)(IActivateAudioInterfaceAsyncOperation *activateOperation) override;
 
@@ -108,7 +112,8 @@ uint32_t WinCapture<S>::GetPid() const {
 
 template<typename S>
 WinCapture<S>::WinCapture(const recorder::audio::AudioFormat format, const uint32_t bufferSizeNs,
-                          const CallBackT &callback, const DWORD pid) {
+                          const CallBackT &callback, const DWORD pid, bool loopback) {
+    m_loopback = loopback;
     m_SampleReadyCallback = callback;
     m_format = {
         .wFormatTag = WAVE_FORMAT_PCM,
@@ -151,11 +156,16 @@ HRESULT WinCapture<S>::ActivateAudioInterface() {
         activate_params.blob.pBlobData = reinterpret_cast<BYTE *>(&params);
 
         wil::com_ptr_nothrow<IActivateAudioInterfaceAsyncOperation> activateAudioInterfaceOp;
+        LPOLESTR id;
+        if (!m_loopback) {
+            RETURN_IF_FAILED(StringFromIID(DEVINTERFACE_AUDIO_CAPTURE, &id));
+            CoTaskMemFree(id);
+        }
         RETURN_IF_FAILED(
             ActivateAudioInterfaceAsync(
-                VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
+                m_loopback ? VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK : id,
                 __uuidof(IAudioClient),
-                &activate_params,
+                m_loopback ? &activate_params : nullptr,
                 this, // IActivateAudioInterfaceCompletionHandler
                 &activateAudioInterfaceOp));
 
@@ -171,7 +181,7 @@ HRESULT WinCapture<S>::ActivateAudioInterface() {
 
         RETURN_IF_FAILED(
             m_AudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED,
-                AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
+                (m_loopback ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0) | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
                 m_bufferSizeNs, m_bufferSizeNs, &m_format, nullptr));
 
         RETURN_IF_FAILED(m_AudioClient->GetService(IID_PPV_ARGS(&m_AudioCaptureClient)));

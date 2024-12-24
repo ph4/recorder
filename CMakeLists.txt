@@ -49,7 +49,6 @@ add_executable(recorder
         src/ChunkedRingBuffer.hpp
         src/audio/WinCapture.hpp
         src/audio/WinAudioSource.ixx
-        src/audio/AudioSink.ixx
         src/audio/RingBuffer.ixx
 )
 target_include_directories(recorder PRIVATE src)
@@ -59,6 +58,7 @@ target_sources(recorder
         src/audio/RingBuffer.ixx
         src/audio/AudioSource.ixx
         src/audio/WinAudioSource.ixx
+        src/RecordManager.ixx
 )
 
 target_link_libraries(recorder WIL::WIL spdlog::spdlog hmac_sha256 Opus::opus Ogg::ogg)

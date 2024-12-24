@@ -20,6 +20,7 @@
 
 import AudioSource;
 import WinAudioSource;
+import RecordManager;
 
 
 #define FORMAT sizeof(uint16_t)
@@ -45,42 +46,19 @@ int main(const int argc, char const *argv[]) {
     SPDLOG_INFO("Pid = {}", pid);
     SPDLOG_INFO("total_write_ms = {}", total_write_ms);
 
-
-    auto wstream = std::ofstream("test.ogg", std::ios::binary | std::ios::trunc | std::ios::out);
-    auto writer = OggOpusWriter<std::ofstream, 20, SAMPLE_RATE, CHANNELS>(std::move(wstream), 48);
-    if (auto res = writer.Init()) {
-        SPDLOG_ERROR("Failed to initialize OggOpusWriter: {}", res);
-        return -1;
-    }
-
-    auto data_callback = [&writer](std::span<int16_t> data) {
-        if (total_write_ms > 0) {
-            writer.Push(data);
-            total_write_ms -= data.size() / CHANNELS * 1000 / SAMPLE_RATE;
-        } else if (total_write_ms == 0) {
-            write_complete.release();
-            total_write_ms = 0;
-        }
-    };
-
-
     auto fc = recorder::audio::AudioFormat{
-        .channels = CHANNELS,
-        .sampleRate = SAMPLE_RATE,
+        .channels = 1,
+        .sampleRate = 16000,
     };
 
-    auto source = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, pid);
-    source->Play();
-    write_complete.acquire();
-    source->Stop();
+    auto data_callback = [&](std::span<int16_t> data) {
+    };
 
-    auto res = writer.Finalize();
-    if (std::holds_alternative<int>(res)) {
-        SPDLOG_ERROR("Failed to finalize writer: {}", std::get<int>(res));
-        return -1;
-    } else {
-        auto w = std::move(std::get<0>(res));
-        w.close();
-    }
+    auto source = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, pid, true);
+    auto mic = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, 0, false);
+    auto recorder = RecordManager<int16_t>("main", fc, std::move(mic), std::move(source), total_write_ms);
+    recorder.Play();
+    recorder.wire_complete().acquire();
+    recorder.Stop();
     return 0;
 }
