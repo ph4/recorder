@@ -7,16 +7,16 @@ module;
 #include <semaphore>
 #include <span>
 
-#include "OggOpusWriter.hpp"
 #include "spdlog/spdlog.h"
-#include "OggOpusWriter.hpp"
 
 export module RecordManager;
 import AudioSource;
 import RingBuffer;
+import OggOpusEncoder;
 
 using recorder::audio::ProcessAudioSource;
 using recorder::audio::AudioFormat;
+using recorder::audio::OggOpusEncoder;
 
 export template<typename S>
 class RecordManager {
@@ -30,9 +30,10 @@ public:
         name_(name),
         mic_(std::move(mic)),
         process_(std::move(process)),
-        // writer_(),
+        writer_(std::make_shared<std::ofstream>(std::format("{}.ogg", name),
+                                                std::ios::binary | std::ios::trunc | std::ios::out)),
         opus_encoder_(
-          std::move(OggOpusWriter<std::ofstream, 20, 16000, 2>(std::move(std::ofstream( std::format("{}.ogg", name), std::ios::binary | std::ios::trunc | std::ios::out)), 32))) {
+          std::move(OggOpusEncoder<20*16000/1000>(writer_, format_, 32))) {
       if (auto res = opus_encoder_.Init()) {
         SPDLOG_ERROR("Failed to initialize OggOpusWriter: {}", res);
         throw std::runtime_error("Failed to initialize OggOpusWriter");
@@ -75,13 +76,11 @@ public:
       total_write_ms_ -= buffer_.GetChunkSizeFrames() * 1000 / format_.sampleRate;
       if (total_write_ms_ <= 0) {
         auto res = opus_encoder_.Finalize();
-        if (std::holds_alternative<int>(res)) {
-          SPDLOG_ERROR("Failed to finalize writer: {}", std::get<int>(res));
+        if (res) {
+          SPDLOG_ERROR("Failed to finalize writer: {}", res);
           throw std::runtime_error("Failed to finalize writer");
         } else {
-          // writer_->close();
-          auto w = std::move(std::get<0>(res));
-          w.close();
+          writer_->close();
         }
         write_complete_.release();
       }
@@ -94,7 +93,7 @@ public:
     std::string name_;
     std::unique_ptr<ProcessAudioSource<S> > mic_;
     std::unique_ptr<ProcessAudioSource<S> > process_;
-    // std::shared_ptr<std::ofstream> writer_;
-    OggOpusWriter<std::ofstream, 20, 16000, 2> opus_encoder_;
+    std::shared_ptr<std::ofstream> writer_;
+    OggOpusEncoder<20 * 16000 / 1000> opus_encoder_;
     InterleaveRingBuffer<S, 2, 480, 10> buffer_{};
   };

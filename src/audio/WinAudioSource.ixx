@@ -141,7 +141,7 @@ namespace recorder::audio::windows {
 
         ComPtr<WinCapture<S>> wcp = Microsoft::WRL::Make<WinCapture<S>>(format, 200000, callback, pid, loopback);
 
-        wil::com_ptr wc(wcp.Detach());
+        wil::com_ptr<WinCapture<S>> wc(wcp.Detach());
 
         THROW_IF_FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
         THROW_IF_FAILED(wc->Initialize());

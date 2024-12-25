@@ -111,6 +111,11 @@ public:
 
 };
 
+export template<typename T, size_t ChunkFrames, size_t NChunks>
+using RingBuffer = InterleaveRingBuffer<T, 1, ChunkFrames, NChunks>;
+
+// class RingBuffer : public InterleaveRingBuffer<T, 1, ChunkFrames, NChunks> {};
+
 export template<typename T, size_t NChannels, size_t ChunkFrames, size_t NChunks>
 class SinkRingBuffer {
     static constexpr size_t ChunkSamples = ChunkFrames;

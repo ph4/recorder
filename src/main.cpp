@@ -9,14 +9,16 @@
 
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 
+// Workaround unresolved external symbol
+#include <wrl.h>
+
+#include <span>
 #include <fstream>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks-inl.h>
 
 #include "hwid.hpp"
-#include "OggOpusWriter.hpp"
-#include "audio/WinCapture.hpp"
-#include "ChunkedRingBuffer.hpp"
+#include <audio/WinCapture.hpp>
 
 import AudioSource;
 import WinAudioSource;
@@ -24,8 +26,6 @@ import RecordManager;
 
 
 #define FORMAT sizeof(uint16_t)
-#define SAMPLE_RATE 16000
-#define CHANNELS 2
 
 uint32_t total_write_ms = 5000;
 

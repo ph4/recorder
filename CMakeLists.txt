@@ -45,8 +45,7 @@ set(CXX_SCAN_FOR_MODULES ON)
 add_definitions(-DNOMINMAX)
 add_executable(recorder
         src/main.cpp src/hwid.hpp
-        src/OggOpusWriter.hpp
-        src/ChunkedRingBuffer.hpp
+#        src/audio/OggOpusEncoder.ixx
         src/audio/WinCapture.hpp
         src/audio/WinAudioSource.ixx
         src/audio/RingBuffer.ixx
@@ -58,6 +57,7 @@ target_sources(recorder
         src/audio/RingBuffer.ixx
         src/audio/AudioSource.ixx
         src/audio/WinAudioSource.ixx
+        src/audio/OggOpusEncoder.ixx
         src/RecordManager.ixx
 )
 
