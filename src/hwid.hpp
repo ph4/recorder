@@ -159,8 +159,13 @@ public:
     }
 
     int create_wmi() {
-        auto hr = init_library();
-        if (hr) return hr;
+        thread_local bool library_inited = false;
+        int hr;
+        if (!library_inited) {
+            hr = init_library();
+            if (hr) return hr;
+            library_inited = true;
+        }
         hr = create_services();
         if (hr) return hr;
         return 0;
