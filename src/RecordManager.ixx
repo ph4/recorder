@@ -33,7 +33,7 @@ public:
         writer_(std::make_shared<std::ofstream>(std::format("{}.ogg", name),
                                                 std::ios::binary | std::ios::trunc | std::ios::out)),
         opus_encoder_(
-          std::move(OggOpusEncoder<2 * 20 * 16000 / 1000>(
+          std::move(OggOpusEncoder(
             writer_,
             AudioFormat{.channels = 2, .sampleRate = format_.sampleRate},
             32))) {
@@ -89,7 +89,7 @@ protected:
 
       while (buffer_.HasChunks() && total_write_ms_ > 0) {
         opus_encoder_.Push(buffer_.Retrieve());
-        total_write_ms_ -= buffer_.GetChunkSizeFrames() * 1000 / format_.sampleRate;
+        total_write_ms_ -= buffer_.chunk_frames() * 1000 / format_.sampleRate;
       }
 
       if (total_write_ms_ <= 0) {
@@ -113,6 +113,6 @@ protected:
     std::unique_ptr<ProcessAudioSource<S> > mic_;
     std::unique_ptr<ProcessAudioSource<S> > process_;
     std::shared_ptr<std::ofstream> writer_;
-    OggOpusEncoder<2 * 20 * 16000 / 1000> opus_encoder_;
+    OggOpusEncoder opus_encoder_;
     InterleaveRingBuffer<S, 2, 480, 10> buffer_{};
   };

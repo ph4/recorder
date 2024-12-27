@@ -31,13 +31,8 @@ namespace recorder::audio {
     };
     #pragma pack(pop)
 
-    // TODO Dont lay in too heavily on templates
-    export template<size_t FRAME_SIZE>
-    class OggOpusEncoder {
-    public:
-        // using Frame = std::span<const int16_t, FRAME_SIZE * CHANNELS>;
-
-    private:
+    export class OggOpusEncoder {
+        static constexpr size_t OpusFrameSizeMS = 20;
         std::shared_ptr<std::ostream> writer_;
         AudioFormat format_;
         const int32_t bitrate_kbps_;
@@ -46,7 +41,7 @@ namespace recorder::audio {
         uint32_t packets_in_page_ = 0;
         uint32_t packet_no_ = 0;
         uint32_t granule_pos_ = 0;
-        RingBuffer<int16_t, FRAME_SIZE, 3> frame_buffer_{};
+        InterleaveRingBufferHeap<int16_t, 1, 3> frame_buffer_;
 
         static void opusEncoderDeleter(OpusEncoder *encoder) {
             if (encoder != nullptr)
@@ -55,16 +50,22 @@ namespace recorder::audio {
         std::unique_ptr<OpusEncoder, decltype(&opusEncoderDeleter)> encoder_;
         ogg_stream_state ogg_stream_state_{};
 
+        [[nodiscard]] size_t samples_in_opus_frame() const {
+            return OpusFrameSizeMS * format_.sampleRate * format_.channels / 1000;
+        }
+
     public:
         OggOpusEncoder(std::shared_ptr<std::ostream> writer_, const AudioFormat format, const int32_t bitrate_kbps)
             : writer_(std::move(writer_)),
               format_(format),
               bitrate_kbps_(bitrate_kbps),
+              frame_buffer_(samples_in_opus_frame()),
               encoder_(
-                  std::unique_ptr<OpusEncoder, decltype(&opusEncoderDeleter)>::pointer(
-                      malloc(opus_encoder_get_size(format.channels))),
+                  static_cast<std::unique_ptr<OpusEncoder, decltype(&opusEncoderDeleter)>::pointer>(malloc(
+                      opus_encoder_get_size(format.channels))),
                   &opusEncoderDeleter
-              ) { }
+              ) {
+        }
 
         int Init() {
             auto err = opus_encoder_init(encoder_.get(), format_.sampleRate , format_.channels, OPUS_APPLICATION_VOIP);
@@ -132,7 +133,7 @@ namespace recorder::audio {
         }
 
         int Finalize() {
-            frame_buffer_.Push(std::vector<int16_t>(FRAME_SIZE, 0));
+            frame_buffer_.Push(std::vector<int16_t>(samples_in_opus_frame(), 0));
             auto res = EncodeFrame(frame_buffer_.Retrieve(), true);
             if (res != 0) {
                 SPDLOG_ERROR("Flush err = {}", res);
