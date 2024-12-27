@@ -33,7 +33,10 @@ public:
         writer_(std::make_shared<std::ofstream>(std::format("{}.ogg", name),
                                                 std::ios::binary | std::ios::trunc | std::ios::out)),
         opus_encoder_(
-          std::move(OggOpusEncoder<20*16000/1000>(writer_, format_, 32))) {
+          std::move(OggOpusEncoder<2 * 20 * 16000 / 1000>(
+            writer_,
+            AudioFormat{.channels = 2, .sampleRate = format_.sampleRate},
+            32))) {
       if (auto res = opus_encoder_.Init()) {
         SPDLOG_ERROR("Failed to initialize OggOpusWriter: {}", res);
         throw std::runtime_error("Failed to initialize OggOpusWriter");
@@ -57,23 +60,38 @@ public:
       return this->write_complete_;
     }
 
-  protected:
+protected:
     void MicIn(std::span<S> data) {
-      buffer_.PushChannel < 0 > (data);
+      auto can_push = buffer_.template CanPushSamples<0>();
+      if (data.size() > can_push) {
+        buffer_.PushChannel < 0 > (data.subspan(0, can_push));
+        SPDLOG_WARN("MicIn buffer overflow: {}", data.size());
+      } else {
+        buffer_.PushChannel < 0 > (data);
+      }
       WriteAudio();
     }
 
     void ProcessIn(std::span<S> data) {
-      buffer_.PushChannel < 1 > (data);
+      auto can_push = buffer_.template CanPushSamples<1>();
+      if (data.size() > can_push) {
+        buffer_.PushChannel < 1 > (data.subspan(0, can_push));
+        SPDLOG_WARN("ProcessIn buffer overflow: {}", data.size());
+      } else {
+        buffer_.PushChannel < 1 > (data);
+      }
       WriteAudio();
     }
 
     void WriteAudio() {
-      if (!buffer_.HasChunks() || total_write_ms_ <= 0) return;
+      std::lock_guard guard(write_mutex_);
+      if (total_write_ms_ <= 0) return;
 
-      opus_encoder_.Push(buffer_.Retrieve());
+      while (buffer_.HasChunks() && total_write_ms_ > 0) {
+        opus_encoder_.Push(buffer_.Retrieve());
+        total_write_ms_ -= buffer_.GetChunkSizeFrames() * 1000 / format_.sampleRate;
+      }
 
-      total_write_ms_ -= buffer_.GetChunkSizeFrames() * 1000 / format_.sampleRate;
       if (total_write_ms_ <= 0) {
         auto res = opus_encoder_.Finalize();
         if (res) {
@@ -87,13 +105,14 @@ public:
     }
 
   private:
+    std::mutex write_mutex_{};
     std::binary_semaphore write_complete_{0};
-    uint32_t total_write_ms_ = 5000;
+    int32_t total_write_ms_ = 5000;
     AudioFormat format_;
     std::string name_;
     std::unique_ptr<ProcessAudioSource<S> > mic_;
     std::unique_ptr<ProcessAudioSource<S> > process_;
     std::shared_ptr<std::ofstream> writer_;
-    OggOpusEncoder<20 * 16000 / 1000> opus_encoder_;
+    OggOpusEncoder<2 * 20 * 16000 / 1000> opus_encoder_;
     InterleaveRingBuffer<S, 2, 480, 10> buffer_{};
   };

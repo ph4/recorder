@@ -135,7 +135,7 @@ namespace recorder::audio::windows {
 
     export template<typename S>
     std::unique_ptr<WinAudioSource<S>> get_source_for_pid(AudioFormat format, typename WinCapture<S>::CallBackT callback, uint32_t pid, bool loopback) {
-        if ((loopback && pid == 0) || (!loopback && pid != 0)) {
+        if (!loopback && pid != 0) {
             throw std::invalid_argument("pid is invalid");
         }
 

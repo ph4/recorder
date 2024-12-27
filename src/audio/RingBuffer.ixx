@@ -75,6 +75,11 @@ public:
     constexpr size_t GetChunkSizeFrames() const {
         return ChunkFrames;
     }
+
+    template<size_t Channel> requires (Channel < NChannels)
+    [[nodiscard]] size_t CanPushSamples() const {
+        return ChunkFrames * NChunks - sizes_frames_[Channel];
+    }
     Chunk Retrieve() {
         if (min_size_frames_ < ChunkFrames) {
             throw std::out_of_range("Retrieve out of range");
@@ -128,9 +133,8 @@ class SinkRingBuffer {
     size_t read_idx_ = 0;
     size_t min_size_frames_ = 0;
 
-    template<size_t Channel>
+    template<size_t Channel> requires (Channel < NChannels)
     void AddChannel(const std::span<const T> in) {
-        static_assert(Channel < NChannels, "Channel out of range");
         if (sizes_frames_[Channel] + in.size() > NChunks * ChunkFrames) {
             throw std::runtime_error("ChunkedBuffer::Push: Tried to push more than buffer can hold");
         }

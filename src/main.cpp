@@ -81,5 +81,6 @@ int main(const int argc, char const *argv[]) {
     recorder.Play();
     recorder.wire_complete().acquire();
     recorder.Stop();
+
     return 0;
 }
