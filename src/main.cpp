@@ -75,7 +75,7 @@ int main(const int argc, char const *argv[]) {
     auto data_callback = [&](std::span<int16_t> data) {
     };
 
-    auto source = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, pid, true);
+    auto source = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, 0, true);
     auto mic = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, 0, false);
     auto recorder = RecordManager<int16_t>("main", fc, std::move(mic), std::move(source), total_write_ms);
     recorder.Play();

@@ -153,48 +153,34 @@ template<typename S>
 HRESULT WinCapture<S>::ActivateAudioInterface() {
     return SetDeviceErrorIfFailed([&]() -> HRESULT {
         wil::com_ptr_nothrow<IActivateAudioInterfaceAsyncOperation> activateAudioInterfaceOp;
-        if (m_loopback) {
-            if (m_pid != 0) {
-                AUDIOCLIENT_ACTIVATION_PARAMS params = {};
-                params.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
-                params.ProcessLoopbackParams.ProcessLoopbackMode = PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
-                params.ProcessLoopbackParams.TargetProcessId = m_pid;
 
-                PROPVARIANT activate_params = {};
-                activate_params.vt = VT_BLOB;
-                activate_params.blob.cbSize = sizeof(params);
-                activate_params.blob.pBlobData = reinterpret_cast<BYTE *>(&params);
-                RETURN_IF_FAILED(
-                    ActivateAudioInterfaceAsync(
-                        VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
-                        __uuidof(IAudioClient),
-                        &activate_params,
-                        this, // IActivateAudioInterfaceCompletionHandler
-                        &activateAudioInterfaceOp));
-            } else {
-                LPOLESTR id;
-                RETURN_IF_FAILED(StringFromIID(DEVINTERFACE_AUDIO_RENDER_, &id));
-                RETURN_IF_FAILED(
-                    ActivateAudioInterfaceAsync(
-                        id,
-                        __uuidof(IAudioClient),
-                        nullptr,
-                        this, // IActivateAudioInterfaceCompletionHandler
-                        &activateAudioInterfaceOp));
-                CoTaskMemFree(id);
-            }
-        } else {
-            LPOLESTR id;
-            RETURN_IF_FAILED(StringFromIID(DEVINTERFACE_AUDIO_CAPTURE_, &id));
-            RETURN_IF_FAILED(
-                ActivateAudioInterfaceAsync(
-                    id,
-                    __uuidof(IAudioClient),
-                    nullptr,
-                    this, // IActivateAudioInterfaceCompletionHandler
-                    &activateAudioInterfaceOp));
-            CoTaskMemFree(id);
+        AUDIOCLIENT_ACTIVATION_PARAMS params = {};
+        params.ActivationType = m_pid == 0
+                                    ? AUDIOCLIENT_ACTIVATION_TYPE_DEFAULT
+                                    : AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
+        params.ProcessLoopbackParams.ProcessLoopbackMode = PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
+        params.ProcessLoopbackParams.TargetProcessId = m_pid;
+
+        PROPVARIANT activate_params = {};
+        activate_params.vt = VT_BLOB;
+        activate_params.blob.cbSize = sizeof(params);
+        activate_params.blob.pBlobData = reinterpret_cast<BYTE *>(&params);
+
+        LPOLESTR id;
+        if (m_pid == 0) {
+            if (m_loopback) RETURN_IF_FAILED(StringFromIID(DEVINTERFACE_AUDIO_RENDER_, &id));
+            else RETURN_IF_FAILED(StringFromIID(DEVINTERFACE_AUDIO_CAPTURE_, &id));
         }
+
+        RETURN_IF_FAILED(
+            ActivateAudioInterfaceAsync(
+                m_pid == 0 ? id : VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
+                __uuidof(IAudioClient),
+                &activate_params,
+                this, // IActivateAudioInterfaceCompletionHandler
+                &activateAudioInterfaceOp));
+
+        if (m_pid == 0) CoTaskMemFree(id);
         // Wait for activation completion
 
         m_ActivateCompleteEvent.wait();
