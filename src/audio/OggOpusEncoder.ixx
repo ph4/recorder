@@ -35,13 +35,13 @@ namespace recorder::audio {
         static constexpr size_t OpusFrameSizeMS = 20;
         std::shared_ptr<std::ostream> writer_;
         AudioFormat format_;
-        const int32_t bitrate_kbps_;
+        int32_t bitrate_kbps_;
 
-        const uint32_t max_packets_in_page_ = 64;
+        uint32_t max_packets_in_page_ = 64;
         uint32_t packets_in_page_ = 0;
         uint32_t packet_no_ = 0;
         uint32_t granule_pos_ = 0;
-        InterleaveRingBufferHeap<int16_t, 1, 3> frame_buffer_;
+        std::unique_ptr<InterleaveRingBufferHeap<int16_t, 1, 3>> frame_buffer_;
 
         static void opusEncoderDeleter(OpusEncoder *encoder) {
             if (encoder != nullptr)
@@ -59,7 +59,7 @@ namespace recorder::audio {
             : writer_(std::move(writer_)),
               format_(format),
               bitrate_kbps_(bitrate_kbps),
-              frame_buffer_(samples_in_opus_frame()),
+              frame_buffer_(std::make_unique<InterleaveRingBufferHeap<int16_t, 1, 3>>(samples_in_opus_frame())),
               encoder_(
                   static_cast<std::unique_ptr<OpusEncoder, decltype(&opusEncoderDeleter)>::pointer>(malloc(
                       opus_encoder_get_size(format.channels))),
@@ -128,13 +128,13 @@ namespace recorder::audio {
         }
 
         int Push(std::span<const int16_t> data) {
-            frame_buffer_.Push(data);
+            frame_buffer_->Push(data);
             return PostPush();
         }
 
         int Finalize() {
-            frame_buffer_.Push(std::vector<int16_t>(samples_in_opus_frame(), 0));
-            auto res = EncodeFrame(frame_buffer_.Retrieve(), true);
+            frame_buffer_->Push(std::vector<int16_t>(samples_in_opus_frame(), 0));
+            auto res = EncodeFrame(frame_buffer_->Retrieve(), true);
             if (res != 0) {
                 SPDLOG_ERROR("Flush err = {}", res);
                 return res;
@@ -190,8 +190,8 @@ namespace recorder::audio {
         }
 
         int PostPush() {
-            while (frame_buffer_.HasChunks()) {
-                if (auto res = EncodeFrame(frame_buffer_.Retrieve())) return res;
+            while (frame_buffer_->HasChunks()) {
+                if (auto res = EncodeFrame(frame_buffer_->Retrieve())) return res;
             }
             return 0;
         }

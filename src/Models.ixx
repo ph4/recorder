@@ -32,7 +32,7 @@ namespace recorder::models {
 
     export struct RecordMetadata {
         // rfl::Timestamp<"%Y-%m-%dT%H:%M:%S.%f"> start_time;
-        rfl::Timestamp<"%Y-%m-%dT%H:%M:%S.%f"> started;
+        uint64_t started; // Unix timestamp
         int64_t length_seconds;
     };
 

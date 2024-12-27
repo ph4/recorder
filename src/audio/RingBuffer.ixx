@@ -73,6 +73,15 @@ protected:
 public:
     ~InterleaveRingBufferBase() = default;
 
+    void Clear() {
+        for (size_t i = 0; i < NChannels; ++i) {
+            write_frame_idx_[i] = 0;
+            sizes_frames_[i] = 0;
+        }
+        min_size_frames_ = 0;
+        read_chunk_idx_ = 0;
+    }
+
     [[nodiscard]] bool IsEmpty() const {
         return *std::max_element(sizes_frames_.begin(), sizes_frames_.end()) == 0;
     }

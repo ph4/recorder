@@ -75,6 +75,7 @@ message(STATUS "Collected modules: ${MODULES}")
 add_executable(recorder
         src/main.cpp
         ${SOURCES}
+        src/util.cpp
 )
 target_include_directories(recorder PRIVATE src)
 target_sources(recorder
@@ -86,6 +87,7 @@ target_link_libraries(recorder WIL::WIL spdlog::spdlog hmac_sha256 Opus::opus Og
 target_link_libraries(recorder
         mmdevapi.lib
         wbemuuid.lib
+        winhttp.lib
 )
 
 project(recorder-tests)

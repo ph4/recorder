@@ -6,6 +6,7 @@ module;
 #include <spdlog/spdlog.h>
 #include <rfl/json/write.hpp>
 #include "hwid.hpp";
+#include "util.hpp"
 
 module Api;
 
@@ -14,15 +15,14 @@ namespace recorder {
         if (is_authorized_) {
             return static_cast<ApiRegistered &>(*this);
         } else if (try_register) {
-            Register();
-            // ReSharper disable once CppDFAConstantConditions (it lies)
-            if (is_authorized_) {
+            if (auto success = Register()) {
                 return static_cast<ApiRegistered &>(*this);
             }
         }
         return std::nullopt;
     }
 
+    [[nodiscard]]
     rfl::Result<std::monostate> Api::Register() {
         const auto body = rfl::json::write<>(models::Register{config_->name});
         auto res = client().Post(api_stem_ + "/register-client", headers_, body, "application/json");
@@ -53,6 +53,10 @@ namespace recorder {
 
     [[nodiscard]] httplib::Client &ApiRegistered::client() const {
         thread_local httplib::Client client(api_root_);
+        if (auto proxy = get_proxy_config()) {
+            auto [host, port] = proxy.value();
+            client.set_proxy(host, port);
+        }
         return client;
     }
 
@@ -73,13 +77,18 @@ namespace recorder {
         return false;
     }
 
+    [[nodiscard]]
     rfl::Result<std::monostate> ApiRegistered::Upload(const std::filesystem::path &path,
                                                       const models::RecordMetadata &metadata) {
+        std::string ep = "/upload";
+        std::string url = api_stem_ + ep;
+
         httplib::MultipartFormDataItems multipart;
 
+        auto metadata_json = rfl::json::write<>(metadata);
         multipart.push_back({
             .name = "metadata",
-            .content = rfl::json::write<>(metadata),
+            .content = metadata_json,
             .filename = "",
             .content_type = "application/json"
         });
@@ -87,20 +96,21 @@ namespace recorder {
         std::ostringstream file_content;
         file_content << std::ifstream(path.string()).rdbuf();
         multipart.push_back({
-            .name = "metadata",
+            .name = "file",
             .content = file_content.str(),
             .filename = path.filename().string(),
             .content_type = "audio/ogg"
         });
 
-        auto res = client().Post(api_stem_ + "/register-client", headers_, multipart);
 
-        if (const auto con = CheckConnectionError("register-client", res); !con) {
+        auto res = client().Post(url, headers_, multipart);
+
+        if (const auto con = CheckConnectionError(ep, res); !con) {
             return con.error().value();
         }
-        if (res->status != httplib::OK_200) {
+        if (res->status < 200 || res->status >= 300) {
             CheckUnauthorized(res);
-            return rfl::Error(std::format("Upload failed: {}", res->status));
+            return rfl::Error(std::format("Upload failed: {}\n{}", res->status, res->body));
         }
         return std::monostate{};
     }

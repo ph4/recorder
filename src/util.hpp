@@ -4,16 +4,20 @@
 
 #ifndef UTIL_HPP
 #define UTIL_HPP
+#include <windows.h>
 #include <string>
-#include <wil/resource.h>
+#include <iostream>
+#include <optional>
 
-#include "spdlog/fmt/bundled/format.h"
+std::string hresult_to_string(int hr);
 
-inline std::string hresult_to_string(int hr) {
-    wil::unique_hlocal_ansistring message;
-    FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_ALLOCATE_BUFFER, nullptr, hr,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<PSTR>(&message), 0, nullptr);
-    return fmt::format("{:x} : {}", hr, std::string(message.get()));
-}
+std::string wstringToString(const std::wstring& wideStr);
+
+struct ProxyConfig {
+    std::string host;
+    int port;
+};
+ProxyConfig proxy_str_parse(LPWSTR strin);
+std::optional<ProxyConfig> get_proxy_config();
 
 #endif //UTIL_HPP

@@ -19,16 +19,20 @@
 #include <spdlog/sinks/stdout_color_sinks-inl.h>
 
 #include "hwid.hpp"
-#include "rfl/toml/load.hpp"
+#include <rfl.hpp>
+#include <rfl/Timestamp.hpp>
+#include <rfl/toml/load.hpp>
 
 import AudioSource;
 import WinAudioSource;
 import RecordManager;
 import Models;
 import Api;
+import FileUploader;
 
 using recorder::models::LocalConfig;
 
+using std::chrono::system_clock;
 
 #define FORMAT sizeof(uint16_t)
 
@@ -40,7 +44,7 @@ const std::string config_path = "config.toml";
 
 int main(const int argc, char const *argv[]) {
     const auto logger = spdlog::stdout_color_mt("main");
-    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%s::%!] [%^%l%$] %v");
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%s] [%^%l%$] %v");
     logger->set_level(spdlog::level::trace);
     set_default_logger(logger);
 
@@ -75,9 +79,17 @@ int main(const int argc, char const *argv[]) {
     auto data_callback = [&](std::span<int16_t> data) {
     };
 
-    auto source = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, 0, true);
+    auto source = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, pid, true);
     auto mic = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, 0, false);
-    auto recorder = RecordManager<int16_t>("main", fc, std::move(mic), std::move(source), total_write_ms);
+    auto uploader = std::make_shared<recorder::FileUploader>(api, std::filesystem::path("./records/"));
+    auto recorder =
+            recorder::RecordManager<int16_t>("main", uploader, fc, std::move(mic), std::move(source), total_write_ms);
+
+
+    const auto epoch =
+            std::chrono::duration_cast<std::chrono::seconds>(std::chrono::utc_clock::now().time_since_epoch()).count();
+    recorder.StartRecording(recorder::models::RecordMetadata{.started = static_cast<uint64_t>(epoch),
+                                                             .length_seconds = total_write_ms / 1000});
     recorder.Play();
     recorder.wire_complete().acquire();
     recorder.Stop();
