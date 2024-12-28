@@ -79,19 +79,15 @@ int main(const int argc, char const *argv[]) {
     auto data_callback = [&](std::span<int16_t> data) {
     };
 
-    auto source = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, pid, true);
-    auto mic = recorder::audio::windows::get_source_for_pid<int16_t>(fc, data_callback, 0, false);
     auto uploader = std::make_shared<recorder::FileUploader>(api, std::filesystem::path("./records/"));
-    auto recorder =
-            recorder::RecordManager<int16_t>("main", uploader, fc, std::move(mic), std::move(source), total_write_ms);
+    auto recorder = recorder::ProcessRecorder<int16_t>(
+            "main", uploader, fc, pid, [](auto fmt, auto cb, auto scb, auto pid, auto lb) {
+                return std::make_unique<recorder::audio::windows::WinAudioSource<int16_t>>(fmt, cb, scb, pid, lb);
+            });
 
 
-    const auto epoch =
-            std::chrono::duration_cast<std::chrono::seconds>(std::chrono::utc_clock::now().time_since_epoch()).count();
-    recorder.StartRecording(recorder::models::RecordMetadata{.started = static_cast<uint64_t>(epoch),
-                                                             .length_seconds = total_write_ms / 1000});
     recorder.Play();
-    recorder.wire_complete().acquire();
+    std::this_thread::sleep_for(std::chrono::milliseconds(total_write_ms));
     recorder.Stop();
 
     return 0;

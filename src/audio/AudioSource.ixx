@@ -8,11 +8,7 @@ module;
 #include <memory>
 #include <span>
 #include <string>
-#include <optional>
 #include <variant>
-
-#include <chrono>
-
 
 export module AudioSource;
 
@@ -22,42 +18,11 @@ namespace recorder::audio {
         uint32_t sampleRate;
     };
 
-    export class SignalMonitorSimple {
-    public:
-        virtual ~SignalMonitorSimple() = default;
-
-        virtual bool HasSignal() = 0;
-    };
-
-    export struct AudioSourceActivation {
-        std::chrono::time_point<std::chrono::utc_clock> timestamp;
-        std::string activationSource;
-        /**
-         * JSON metadata
-         */
-        std::optional<std::string> metadata;
-    };
-
-    export struct AudioSourceDeactivation {
-    };
-
-
-    export struct SignalMonitorCallbacks {
-        const std::function<void(AudioSourceActivation)> onActivated;
-        const std::function<void(AudioSourceDeactivation)> onDeactivated;
-
-        SignalMonitorCallbacks(const std::function<void(AudioSourceActivation)> &onActivated,
-                               const std::function<void(AudioSourceDeactivation)> &onDeactivated)
-            : onActivated(onActivated), onDeactivated(onDeactivated) {
-        }
-    };
 
     export template<typename S>
     class AudioSource {
-    protected:
-        using CallBackT = std::function<void(std::span<S>)>;
-
     public:
+        using CallBackT = std::function<void(std::span<S>)>;
         virtual ~AudioSource() = default;
 
         enum State {

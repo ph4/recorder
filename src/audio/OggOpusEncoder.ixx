@@ -133,7 +133,8 @@ namespace recorder::audio {
         }
 
         int Finalize() {
-            frame_buffer_->Push(std::vector<int16_t>(samples_in_opus_frame(), 0));
+            // Pushing zeroes sometimes crashes the encoder
+            frame_buffer_->Push(std::vector<int16_t>(samples_in_opus_frame(), 1));
             auto res = EncodeFrame(frame_buffer_->Retrieve(), true);
             if (res != 0) {
                 SPDLOG_ERROR("Flush err = {}", res);

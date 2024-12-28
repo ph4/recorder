@@ -52,11 +52,14 @@ namespace recorder {
     }
 
     [[nodiscard]] httplib::Client &ApiRegistered::client() const {
-        thread_local httplib::Client client(api_root_);
-        if (auto proxy = get_proxy_config()) {
-            auto [host, port] = proxy.value();
-            client.set_proxy(host, port);
-        }
+        thread_local auto client = [this] {
+            httplib::Client client(api_root_);
+            if (auto proxy = get_proxy_config()) {
+                auto [host, port] = proxy.value();
+                client.set_proxy(host, port);
+            }
+            return client;
+        }();
         return client;
     }
 

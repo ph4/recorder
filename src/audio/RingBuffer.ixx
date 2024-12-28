@@ -3,16 +3,19 @@
 //
 module;
 
+#include <array>
+#include <cassert>
+#include <mutex>
 #include <span>
 #include <stdexcept>
 #include <vector>
-#include <array>
 
 export module RingBuffer;
 
 export template<typename ArrayT, typename T, size_t NChannels, size_t NChunks>
 class InterleaveRingBufferBase {
 protected:
+    std::mutex mutex;
     const size_t chunk_frames_;
     const size_t chunk_samples_;
     // using Chunk = std::span<T, ChunkSamples>;
@@ -67,7 +70,10 @@ protected:
         write_frame_idx_[Channel] = i_dst_frame;
         sizes_frames_[Channel] += in.size();
 
-        min_size_frames_ = *std::min_element(sizes_frames_.begin(), sizes_frames_.end());
+        {
+            std::lock_guard lock(mutex);
+            min_size_frames_ = *std::min_element(sizes_frames_.begin(), sizes_frames_.end());
+        }
     }
 
 public:
@@ -106,9 +112,14 @@ public:
 
         const auto start = read_chunk_idx_ * chunk_samples_;
         read_chunk_idx_ = (read_chunk_idx_ + 1) % NChunks;
-        min_size_frames_ -= chunk_frames_;
-        for (auto &i: sizes_frames_) {
-            i -= chunk_frames_;
+
+        {
+            std::lock_guard lock(mutex);
+            min_size_frames_ -= chunk_frames_;
+            for (auto &i: sizes_frames_) {
+                assert(i >= chunk_frames_);
+                i -= chunk_frames_;
+            }
         }
         return std::span<T>(data_.begin() + start, chunk_samples_);
     };

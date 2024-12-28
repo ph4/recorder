@@ -73,9 +73,7 @@ file(GLOB_RECURSE MODULES "src/*.ixx" "src/**/*.ixx")
 message(STATUS "Collected files: ${SOURCES}")
 message(STATUS "Collected modules: ${MODULES}")
 add_executable(recorder
-        src/main.cpp
         ${SOURCES}
-        src/util.cpp
 )
 target_include_directories(recorder PRIVATE src)
 target_sources(recorder
