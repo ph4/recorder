@@ -27,6 +27,11 @@ BraceWrapping:
   SplitEmptyNamespace: true
 BreakBeforeBraces: Custom
 
+BinPackArguments: false
+BinPackParameters: false
+#AllowAllArgumentsOnNextLine: false
+#PenaltyBreakBeforeFirstCallParameter: 1000
+
 BreakConstructorInitializers: BeforeColon
 BreakConstructorInitializersBeforeComma: false
 ColumnLimit: 120
