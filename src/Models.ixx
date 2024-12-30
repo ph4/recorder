@@ -43,18 +43,45 @@ namespace recorder::models {
         std::string name;
     };
 
-    export struct CommandBase {
-        rfl::Literal<"normal", "force_upload", "reload"> type;
+    export enum class StatusType {
+        starting,
+        idle,
+        exiting,
+        reloading,
+        exited,
     };
+
+    export enum class StatusTypeWithFile {
+        recording,
+        uploading,
+    };
+
+    export struct StatusBase {
+        StatusType type;
+    };
+
+    export struct StatusWithFile {
+        StatusTypeWithFile type;
+        RecordMetadata data;
+    };
+
+    export using Status = rfl::Variant<StatusBase, StatusWithFile>;
+
+    export enum class CommandType { normal, force_upload, reload, stop, kill };
+
+    export struct CommandBase {
+        CommandType type;
+    };
+
     export struct CommandStop {
-        rfl::Literal<"stop"> type;
+        CommandType type;
         bool data;
     };
 
     export struct CommandKill {
-        rfl::Literal<"kill"> type;
+        CommandType type;
         int data;
     };
 
-    export using Command = rfl::TaggedUnion<"type", CommandBase, CommandStop, CommandKill>;
+    export using Command = rfl::Variant<CommandBase, CommandStop, CommandKill>;
 }

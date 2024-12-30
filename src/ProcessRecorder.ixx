@@ -12,7 +12,7 @@ module;
 
 #include "spdlog/spdlog.h"
 
-export module RecordManager;
+export module ProcessRecorder;
 
 import AudioSource;
 import RingBuffer;

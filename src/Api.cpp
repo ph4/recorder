@@ -3,9 +3,10 @@
 //
 module;
 #include <httplib.h>
-#include <spdlog/spdlog.h>
 #include <rfl/json/write.hpp>
-#include "hwid.hpp";
+#include <spdlog/spdlog.h>
+#include "hwid.hpp"
+#include "rfl/json/read.hpp"
 #include "util.hpp"
 
 module Api;
@@ -83,27 +84,21 @@ namespace recorder {
     [[nodiscard]]
     rfl::Result<std::monostate> ApiRegistered::Upload(const std::filesystem::path &path,
                                                       const models::RecordMetadata &metadata) {
-        std::string ep = "/upload";
-        std::string url = api_stem_ + ep;
+        const auto ep = "/upload";
+        const auto url = api_stem_ + ep;
 
         httplib::MultipartFormDataItems multipart;
 
         auto metadata_json = rfl::json::write<>(metadata);
-        multipart.push_back({
-            .name = "metadata",
-            .content = metadata_json,
-            .filename = "",
-            .content_type = "application/json"
-        });
+        multipart.push_back(
+                {.name = "metadata", .content = metadata_json, .filename = "", .content_type = "application/json"});
 
         std::ostringstream file_content;
         file_content << std::ifstream(path.string()).rdbuf();
-        multipart.push_back({
-            .name = "file",
-            .content = file_content.str(),
-            .filename = path.filename().string(),
-            .content_type = "audio/ogg"
-        });
+        multipart.push_back({.name = "file",
+                             .content = file_content.str(),
+                             .filename = path.filename().string(),
+                             .content_type = "audio/ogg"});
 
 
         auto res = client().Post(url, headers_, multipart);
@@ -116,6 +111,24 @@ namespace recorder {
             return rfl::Error(std::format("Upload failed: {}\n{}", res->status, res->body));
         }
         return std::monostate{};
+    }
+
+    rfl::Result<models::Command> ApiRegistered::SendStatus(const models::Status &status) {
+
+        const auto ep = "/post_status";
+        const auto url = api_stem_ + ep;
+
+        const auto status_json = rfl::json::write<>(status);
+        auto res = client().Post(url, headers_, status_json, "application/json");
+
+        if (const auto con = CheckConnectionError(ep, res); !con) {
+            return con.error().value();
+        }
+        if (res->status < 200 || res->status >= 300) {
+            CheckUnauthorized(res);
+            return rfl::Error(std::format("SendStatus failed: {}\n{}", res->status, res->body));
+        }
+        return rfl::json::read<models::Command>(res->body.c_str());
     }
 }
 

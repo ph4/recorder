@@ -34,6 +34,8 @@ namespace recorder {
 
     public:
         rfl::Result<std::monostate> Upload(const std::filesystem::path &path, const models::RecordMetadata &metadata);
+
+        rfl::Result<models::Command> SendStatus(const models::Status &status);
     };
 
     export class Api : ApiRegistered {
