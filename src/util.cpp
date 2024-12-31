@@ -7,6 +7,11 @@
 #include <winhttp.h>
 #include <wil/resource.h>
 
+#include <windows.h>
+#include <tlhelp32.h>
+#include <string>
+#include <vector>
+
 #include "spdlog/fmt/bundled/format.h"
 
 std::string hresult_to_string(int hr) {
@@ -65,3 +70,11 @@ std::optional<ProxyConfig> get_proxy_config() {
     }
     return std::nullopt;
 }
+
+struct backstage_pass {}; // now this is a dummy structure, not an object!
+_Thrd_id_t std::thread::id::*get(backstage_pass); // declare fn to call
+
+// Explicitly instantiating the class generates the fn declared above.
+template class access_bypass<_Thrd_id_t std::thread::id::*, &std::thread::id::_Id, backstage_pass>;
+
+unsigned int get_thread_id(const std::thread::id &id) { return id.*get(backstage_pass()); };

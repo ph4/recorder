@@ -24,7 +24,7 @@ namespace recorder {
     }
 
     [[nodiscard]]
-    rfl::Result<std::monostate> Api::Register() {
+    rfl::Result<models::RemoteConfig> Api::Register() {
         const auto body = rfl::json::write<>(models::Register{config_->name});
         auto res = client().Post(api_stem_ + "/register-client", headers_, body, "application/json");
         if (const auto con = CheckConnectionError("/register-client", res); !con) {
@@ -36,7 +36,7 @@ namespace recorder {
         }
         SPDLOG_INFO("Registered client: {}", res->body);
         is_authorized_ = true;
-        return std::monostate{};
+        return rfl::json::read<models::RemoteConfig>(res->body);
     }
 
     ApiRegistered::ApiRegistered(const std::shared_ptr<models::LocalConfig> &config): config_(config),

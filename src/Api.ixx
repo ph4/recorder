@@ -44,6 +44,6 @@ namespace recorder {
 
         std::optional<std::reference_wrapper<ApiRegistered>> GetRegistered(const bool try_register = true);
 
-        rfl::Result<std::monostate> Register();
+        rfl::Result<models::RemoteConfig> Register();
     };
 }

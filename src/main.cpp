@@ -15,12 +15,15 @@
 
 
 #include <controller.hpp>
+#include <ranges>
 
-#include "logging.hpp"
-#include "hwid.hpp"
 #include <rfl.hpp>
 #include <rfl/Timestamp.hpp>
 #include <rfl/toml/load.hpp>
+#include "hwid.hpp"
+#include "logging.hpp"
+
+#include "rfl/toml/save.hpp"
 
 import AudioSource;
 import WinAudioSource;
@@ -32,7 +35,7 @@ import ProcessLister;
 
 using recorder::models::LocalConfig;
 
-using std::chrono::system_clock;
+using namespace std::chrono;
 
 #define FORMAT sizeof(uint16_t)
 
@@ -45,10 +48,6 @@ const std::string config_path = "config.toml";
 int main(const int argc, char const *argv[]) {
     setup_logger();
 
-    recorder::ProcessLister pl;
-    for (auto app : pl.getAudioPlayingProcesses()) {
-        std::cout << app.getProcessName() << std::endl;
-    }
 
     auto uuid = get_uuid();
     SPDLOG_INFO("Machine UUID = {}", uuid);
@@ -60,13 +59,23 @@ int main(const int argc, char const *argv[]) {
         SPDLOG_ERROR("Error reading config ({})", config_load.error().value().what());
         return 1;
     }
-    auto config = config_load.value();
-    auto api = std::make_shared<recorder::Api>(config);
-    api->Register().or_else([](auto e) {
+    auto local_config = config_load.value();
+    auto api = std::make_shared<recorder::Api>(local_config);
+    auto res = api->Register().or_else([](auto e) {
         SPDLOG_ERROR("Error registering API ({})", e.what());
         return e;
     });
 
+
+    auto remote_config_r = res.or_else([](auto e) {
+        return rfl::toml::load<recorder::models::RemoteConfig>("remote_config.toml");
+    });
+    if (!remote_config_r) {
+        SPDLOG_ERROR("Error loading remote config");
+        return 1;
+    }
+    const auto remote_config = remote_config_r.value();
+    rfl::toml::save<>("remote_config.toml", remote_config);
 
     const uint32_t pid = argc > 1 ? std::stoi(argv[1]) : 0;
     total_write_ms = argc > 2 ? std::stoi(argv[2]) : 1000;
@@ -78,19 +87,38 @@ int main(const int argc, char const *argv[]) {
         .sampleRate = 16000,
     };
 
-    {
-        const auto uploader = std::make_shared<recorder::FileUploader>(api, std::filesystem::path("./records/"));
-        const auto controller = std::make_shared<recorder::Controller>(api, 5000);
-        auto recorder = recorder::ProcessRecorder<int16_t>(controller,
-                "main", uploader, fc, pid, [](auto fmt, auto cb, auto scb, auto pid, auto lb) {
-                    return std::make_unique<recorder::audio::windows::WinAudioSource<int16_t>>(fmt, cb, scb, pid, lb);
-                });
+    const auto uploader = std::make_shared<recorder::FileUploader>(api, std::filesystem::path("./records/"));
+    const auto controller = std::make_shared<recorder::Controller>(api, 5000);
+    auto thread = std::thread([&]() {
+        recorder::ProcessLister pl;
+        std::unordered_map<std::string, std::unique_ptr<recorder::ProcessRecorder<int16_t>>> recorders;
+        while (true) {
+            auto start = high_resolution_clock::now();
+
+            auto playing_processes = pl.getAudioPlayingProcesses();
+            std::unordered_set<std::string> blacklist = {"explorer.exe"};
+            auto new_processes = playing_processes | std::ranges::views::filter([&](recorder::ProcessInfo e) {
+                        return !blacklist.contains(e.process_name()) && !recorders.contains(e.process_name());
+                    });
+            auto factory = [](auto fmt, auto cb, auto scb, auto pid, auto lb) {
+                return std::make_unique<recorder::audio::windows::WinAudioSource<int16_t>>(fmt, cb, scb, pid, lb);
+            };
+            for (const auto &p: new_processes) {
+                auto recorder = std::make_unique<recorder::ProcessRecorder<int16_t>>(
+                        controller, p.process_name(), uploader, fc, p.process_id(), factory);
+                SPDLOG_INFO("Starting recording on {}", p.process_name());
+                recorder->Play();
+                //TODO stoppage
+                recorders.emplace(p.process_name(), std::move(recorder));
+            }
+            auto elapsed = high_resolution_clock::now() - start;
+            auto to_sleep = milliseconds(200) - elapsed;
+            std::this_thread::sleep_for(to_sleep);
+        }
+    });
 
 
-        recorder.Play();
-        std::this_thread::sleep_for(std::chrono::milliseconds(total_write_ms));
-        recorder.Stop();
-    }
+    std::this_thread::sleep_for(milliseconds(total_write_ms));
     std::cout << "Goodbye!" << std::endl;
 
     return 0;

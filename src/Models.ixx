@@ -39,7 +39,7 @@ namespace recorder::models {
         double_t voice_threshold;
         Int max_recording_s;
         Int bitrate_kbps;
-        std::vector<App> app_configs;
+        // std::vector<App> app_configs;
     };
 
     export struct RecordMetadata {
