@@ -53,7 +53,7 @@ namespace recorder::audio::windows {
                 active_ = true;
                 samples_without_signal_ = 0;
                 const SignalActiveData data{
-                        .timestamp = std::chrono::utc_clock::now(),
+                        .timestamp = std::chrono::system_clock::now(),
                         .activationSource = std::string("silence"),
                         .metadata = std::nullopt,
                 };

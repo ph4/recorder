@@ -1,6 +1,9 @@
 //
 // Created by pavel on 30.12.2024.
 //
+#ifndef CONTROLLER_HPP
+#define CONTROLLER_HPP
+
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -10,7 +13,6 @@
 #include "rfl/TaggedUnion.hpp"
 
 //module Controller;
-import ProcessRecorder;
 import Api;
 import Models;
 
@@ -52,6 +54,7 @@ namespace recorder {
 
     public:
         Controller(const std::shared_ptr<Api> &api, size_t status_interval_ms);
+        ~Controller();
         void StatusLoop();
 
 
@@ -59,3 +62,5 @@ namespace recorder {
         models::Command PollCommand(const std::string &name);
     };
 } // namespace recorder
+
+#endif CONTROLLER_HPP

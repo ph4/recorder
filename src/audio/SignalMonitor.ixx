@@ -16,7 +16,7 @@ namespace recorder::audio {
     };
 
     export struct SignalActiveData {
-        std::chrono::time_point<std::chrono::utc_clock> timestamp;
+        std::chrono::time_point<std::chrono::system_clock> timestamp;
         std::string activationSource;
         /**
          * JSON metadata

@@ -2,15 +2,18 @@
 // Created by pavel on 23.12.2024.
 //
 module;
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <semaphore>
 #include <span>
 #include <utility>
-#include <chrono>
 
-#include "spdlog/spdlog.h"
+#include <rfl/enums.hpp>
+
+#include "Controller.hpp"
+#include "logging.hpp"
 
 export module ProcessRecorder;
 
@@ -20,6 +23,7 @@ import OggOpusEncoder;
 import FileUploader;
 import Models;
 import SignalMonitor;
+import ProcessLister;
 
 using recorder::audio::AudioFormat;
 using recorder::audio::OggOpusEncoder;
@@ -41,6 +45,7 @@ namespace recorder {
 
     export template<typename S>
     class ProcessRecorder {
+        std::shared_ptr<Controller> controller_;
         std::string name_;
         std::shared_ptr<FileUploader> uploader_;
         AudioFormat format_;
@@ -54,7 +59,6 @@ namespace recorder {
 
     protected:
         void StartRecording(audio::SignalActiveData dat) {
-
             auto zone = current_zone();
             zoned_time now{zone, std::chrono::time_point_cast<seconds>(system_clock::now())};
             const auto start_time = std::chrono::time_point_cast<seconds>(now.get_sys_time());
@@ -75,7 +79,6 @@ namespace recorder {
                 throw std::runtime_error("Failed to initialize OggOpusWriter");
             }
         }
-    protected:
 
         void FinishRecording(audio::SignalInactiveData dat) {
             SPDLOG_INFO("Finishing recording {}", file_->file_path.string());
@@ -100,7 +103,10 @@ namespace recorder {
         }
 
         void MicIn(std::span<S> data) {
-            if (!file_) return;
+            if (!file_) {
+                AfterIdle();
+                return;
+            }
             auto can_push = buffer_.template CanPushSamples<0>();
             if (data.size() > can_push) {
                 buffer_.PushChannel<0>(data.subspan(0, can_push));
@@ -108,11 +114,14 @@ namespace recorder {
             } else {
                 buffer_.PushChannel<0>(data);
             }
-            WriteAudio();
+            AfterPush();
         }
 
         void ProcessIn(std::span<S> data) {
-            if (!file_) return;
+            if (!file_) {
+                AfterIdle();
+                return;
+            }
             auto can_push = buffer_.template CanPushSamples<1>();
             if (data.size() > can_push) {
                 buffer_.PushChannel<1>(data.subspan(0, can_push));
@@ -120,16 +129,78 @@ namespace recorder {
             } else {
                 buffer_.PushChannel<1>(data);
             }
-            WriteAudio();
+            AfterPush();
         }
 
-        void WriteAudio() {
-            if (file_) {
-                std::lock_guard guard(write_mutex_);
-
-                while (buffer_.HasChunks()) {
-                    file_->opus_encoder_.Push(buffer_.Retrieve());
+        void AfterIdle() {
+            auto cmd = controller_->SetStatus(name_, InternalStatusBase(InternalStatusType::idle));
+            auto visitor = [&]<typename T> (const T& v) {
+                using Type = std::decay_t<T>;
+                if constexpr (std::is_same_v<Type, models::CommandKill>) {
+                    this->Stop();
+                } else if constexpr (std::is_same_v<Type, models::CommandStop>) {
+                    this->Stop();
+                } else if constexpr (std::is_same_v<Type, models::CommandBase>) {
+                    if (v.type == models::CommandType::reload) {
+                        this->Stop();
+                    }
                 }
+            };
+            cmd.visit(visitor);
+        }
+
+        void AfterPush() {
+            if (file_) {
+                const auto started = std::chrono::duration_cast<seconds>(file_->start_time.time_since_epoch()).count();
+                const auto current =
+                        std::chrono::duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
+                {
+                    std::lock_guard guard(write_mutex_);
+
+                    while (buffer_.HasChunks()) {
+                        file_->opus_encoder_.Push(buffer_.Retrieve());
+                    }
+                }
+                const auto md = RecordMetadata(started, current - started);
+                auto cmd = controller_->SetStatus(name_, InternalStatusWithMetadata(InternalStatusType::recording, md));
+
+                auto visitor = [&]<typename T>(const T &v) {
+                    using Type = std::decay_t<T>;
+                    if constexpr (std::is_same_v<Type, models::CommandKill>) {
+                        this->FinishRecording(audio::SignalInactiveData{});
+                        this->Stop();
+                    } else if constexpr (std::is_same_v<Type, models::CommandStop>) {
+                        this->FinishRecording(audio::SignalInactiveData{});
+                        this->Stop();
+                    } else if constexpr (std::is_same_v<Type, models::CommandBase>) {
+                        using enum models::CommandType;
+                        switch (v.type) {
+                            case normal:
+                                break;
+                            case force_upload: {
+                                this->FinishRecording(audio::SignalInactiveData{});
+                                this->StartRecording(audio::SignalActiveData{
+                                        .timestamp = system_clock::now(),
+                                        .activationSource = "force_upload",
+                                });
+                                break;
+                            }
+                            case reload: {
+                                this->FinishRecording(audio::SignalInactiveData{});
+                                this->Stop();
+                                break;
+                            }
+                            default: {
+                                SPDLOG_ERROR("Unknown command type: {}", rfl::enum_to_string(v.type) );
+                                throw std::runtime_error("Unknown command type");
+                            }
+
+                        }
+                    } else {
+                        static_assert(rfl::always_false_v<Type>, "Unknown command type");
+                    }
+                };
+                cmd.visit(visitor);
             }
         }
 
@@ -141,14 +212,13 @@ namespace recorder {
                                                        uint32_t pid,
                                                        bool loopback)>;
 
-        ProcessRecorder(std::string name,
-                      const std::shared_ptr<FileUploader> &uploader,
-                      AudioFormat format,
-                      uint32_t pid,
-                      SourceFactory audio_source_factory)
-            : name_(std::move(name)),
-              uploader_(uploader),
-              format_(format)
+        ProcessRecorder(const std::shared_ptr<Controller> &controller,
+                        std::string name,
+                        const std::shared_ptr<FileUploader> &uploader,
+                        AudioFormat format,
+                        uint32_t pid,
+                        SourceFactory audio_source_factory)
+            : controller_(controller), name_(std::move(name)), uploader_(uploader), format_(format)
         {
             auto callbacks = audio::SignalMonitorSilenceCallbacks(
                     [this](auto p) { StartRecording(p); }, [this](auto p) { FinishRecording(p); }, 4);

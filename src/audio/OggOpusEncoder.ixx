@@ -11,7 +11,8 @@ module;
 #include <random>
 #include <ogg/ogg.h>
 #include <variant>
-#include <spdlog/spdlog.h>
+
+#include "logging.hpp"
 
 export module OggOpusEncoder;
 import RingBuffer;

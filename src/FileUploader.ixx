@@ -11,7 +11,8 @@ module;
 #include <rfl/json/load.hpp>
 #include <rfl/json/save.hpp>
 
-#include <spdlog/spdlog.h>
+#include "logging.hpp"
+#include "util.hpp"
 
 
 export module FileUploader;
@@ -37,7 +38,7 @@ namespace recorder {
 
 
         void UploadLoop() {
-            SPDLOG_DEBUG("UploadLoop() is runnning in thread {}", std::this_thread::get_id());
+            SPDLOG_DEBUG("UploadLoop() is running in thread {}",  get_thread_id(std::this_thread::get_id()));
             while (auto file = upload_queue_.ConsumeSync()) {
                 std::optional<std::reference_wrapper<ApiRegistered>> apio;
                 while (!finishing_ && !((apio = api_->GetRegistered()))) {

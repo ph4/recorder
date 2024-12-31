@@ -13,11 +13,10 @@
 
 #include <yyjson.h>
 
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks-inl.h>
+#include <controller.hpp>
 
+#include "logging.hpp"
 #include "hwid.hpp"
 #include <rfl.hpp>
 #include <rfl/Timestamp.hpp>
@@ -29,6 +28,7 @@ import ProcessRecorder;
 import Models;
 import Api;
 import FileUploader;
+import ProcessLister;
 
 using recorder::models::LocalConfig;
 
@@ -43,10 +43,12 @@ std::binary_semaphore write_complete{0};
 const std::string config_path = "config.toml";
 
 int main(const int argc, char const *argv[]) {
-    const auto logger = spdlog::stdout_color_mt("main");
-    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%s] [%^%l%$] %v");
-    logger->set_level(spdlog::level::trace);
-    set_default_logger(logger);
+    setup_logger();
+
+    recorder::ProcessLister pl;
+    for (auto app : pl.getAudioPlayingProcesses()) {
+        std::cout << app.getProcessName() << std::endl;
+    }
 
     auto uuid = get_uuid();
     SPDLOG_INFO("Machine UUID = {}", uuid);
@@ -76,19 +78,20 @@ int main(const int argc, char const *argv[]) {
         .sampleRate = 16000,
     };
 
-    auto data_callback = [&](std::span<int16_t> data) {
-    };
+    {
+        const auto uploader = std::make_shared<recorder::FileUploader>(api, std::filesystem::path("./records/"));
+        const auto controller = std::make_shared<recorder::Controller>(api, 5000);
+        auto recorder = recorder::ProcessRecorder<int16_t>(controller,
+                "main", uploader, fc, pid, [](auto fmt, auto cb, auto scb, auto pid, auto lb) {
+                    return std::make_unique<recorder::audio::windows::WinAudioSource<int16_t>>(fmt, cb, scb, pid, lb);
+                });
 
-    auto uploader = std::make_shared<recorder::FileUploader>(api, std::filesystem::path("./records/"));
-    auto recorder = recorder::ProcessRecorder<int16_t>(
-            "main", uploader, fc, pid, [](auto fmt, auto cb, auto scb, auto pid, auto lb) {
-                return std::make_unique<recorder::audio::windows::WinAudioSource<int16_t>>(fmt, cb, scb, pid, lb);
-            });
 
-
-    recorder.Play();
-    std::this_thread::sleep_for(std::chrono::milliseconds(total_write_ms));
-    recorder.Stop();
+        recorder.Play();
+        std::this_thread::sleep_for(std::chrono::milliseconds(total_write_ms));
+        recorder.Stop();
+    }
+    std::cout << "Goodbye!" << std::endl;
 
     return 0;
 }

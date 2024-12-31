@@ -17,10 +17,10 @@
 #include <atlbase.h>
 #include <atlconv.h>
 
-#include <spdlog/spdlog.h>
 #include <sha256.h>
 #include <hmac_sha256.h>
 
+#include "logging.hpp"
 #include "util.hpp"
 
 class WmiConnection {
