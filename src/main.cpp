@@ -45,6 +45,12 @@ std::binary_semaphore write_complete{0};
 
 const std::string config_path = "config.toml";
 
+struct RecorderItem {
+    std::unique_ptr<recorder::ProcessRecorder<int16_t>> recorder;
+    recorder::ProcessInfo process;
+};
+
+
 int main(const int argc, char const *argv[]) {
     setup_logger();
 
@@ -96,7 +102,7 @@ int main(const int argc, char const *argv[]) {
     const auto controller = std::make_shared<recorder::Controller>(api, 5000);
     auto thread = std::thread([&]() {
         recorder::ProcessLister pl;
-        std::unordered_map<std::string, std::unique_ptr<recorder::ProcessRecorder<int16_t>>> recorders;
+        std::unordered_map<std::string, std::unique_ptr<RecorderItem>> recorders;
         while (true) {
             auto start = high_resolution_clock::now();
 
@@ -119,8 +125,19 @@ int main(const int argc, char const *argv[]) {
                         controller, p.process_name(), uploader, fc, p.process_id(), factory);
                 SPDLOG_INFO("Starting recording on {}", p.process_name());
                 recorder->Play();
-                //TODO stoppage
-                recorders.emplace(p.process_name(), std::move(recorder));
+                auto ri = std::make_unique<RecorderItem>(std::move(recorder), p);
+                recorders.emplace(p.process_name(), std::move(ri));
+            }
+            auto to_remove = std::vector<std::string>();
+            for (const auto &[k, v]: recorders) {
+                if (!v->process.isAlive()) {
+                    SPDLOG_INFO("Stopping recording on {}", v->process.process_name());
+                    v->recorder->Stop();
+                    to_remove.push_back(k);
+                }
+            }
+            for (const auto &k: to_remove) {
+                recorders.erase(k);
             }
             auto elapsed = high_resolution_clock::now() - start;
             auto to_sleep = milliseconds(200) - elapsed;
