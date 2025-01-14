@@ -18,12 +18,10 @@ namespace recorder::models {
         // std::optional<bool> offline_files = std::nullopt;
     };
 
-    enum class Module {};
-
     export struct App {
         using Int = long;
         std::string exe_name;
-        std::optional<Module> module = std::nullopt;
+        std::optional<std::string> module = std::nullopt;
         std::optional<Int> max_silence_seconds = std::nullopt;
         std::optional<Int> bitrate_kbps = std::nullopt;
         std::optional<Int> max_recording_s = std::nullopt;
@@ -39,7 +37,7 @@ namespace recorder::models {
         double_t voice_threshold;
         Int max_recording_s;
         Int bitrate_kbps;
-        // std::vector<App> app_configs;
+        std::vector<App> app_configs;
     };
 
     export struct RecordMetadata {

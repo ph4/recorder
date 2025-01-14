@@ -67,7 +67,10 @@ int main(const int argc, char const *argv[]) {
     });
 
 
-    auto remote_config_r = res.or_else([](auto e) {
+    auto using_cached_remote_config = false;
+    auto remote_config_r = res.or_else([&](auto e) {
+        SPDLOG_WARN("Using cached remote config");
+        using_cached_remote_config = true;
         return rfl::toml::load<recorder::models::RemoteConfig>("remote_config.toml");
     });
     if (!remote_config_r) {
@@ -75,7 +78,9 @@ int main(const int argc, char const *argv[]) {
         return 1;
     }
     const auto remote_config = remote_config_r.value();
-    rfl::toml::save<>("remote_config.toml", remote_config);
+    if (!using_cached_remote_config) {
+        rfl::toml::save<>("remote_config.toml", remote_config);
+    }
 
     const uint32_t pid = argc > 1 ? std::stoi(argv[1]) : 0;
     total_write_ms = argc > 2 ? std::stoi(argv[2]) : 1000;
@@ -96,9 +101,15 @@ int main(const int argc, char const *argv[]) {
             auto start = high_resolution_clock::now();
 
             auto playing_processes = pl.getAudioPlayingProcesses();
-            std::unordered_set<std::string> blacklist = {"explorer.exe"};
-            auto new_processes = playing_processes | std::ranges::views::filter([&](recorder::ProcessInfo e) {
-                        return !blacklist.contains(e.process_name()) && !recorders.contains(e.process_name());
+            std::unordered_set<std::string> whitelist;
+            auto wl = remote_config.app_configs |
+                      std::ranges::views::transform([](recorder::models::App app) { return app.exe_name; });
+            for (auto e: wl) {
+                whitelist.insert(e);
+            }
+            auto new_processes =
+                    playing_processes | std::ranges::views::filter([&](recorder::ProcessInfo e) {
+                        return whitelist.contains(e.process_name()) && !recorders.contains(e.process_name());
                     });
             auto factory = [](auto fmt, auto cb, auto scb, auto pid, auto lb) {
                 return std::make_unique<recorder::audio::windows::WinAudioSource<int16_t>>(fmt, cb, scb, pid, lb);
