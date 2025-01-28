@@ -27,16 +27,12 @@ class WmiConnection {
 public:
     wil::com_ptr_nothrow<IWbemServices> svc;
 
-    //Should be called once per thread
-    [[nodiscard]] static int init_library()
+    //Should be called only once
+    [[nodiscard]] static int init_security()
     {
-        auto hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        if (FAILED(hr)) {
-            return hr;
-        }
 
         // Set general COM security levels
-        hr =  CoInitializeSecurity(
+        auto hr =  CoInitializeSecurity(
             nullptr,
             -1,                          // COM authentication
             nullptr,                        // Authentication services
@@ -159,12 +155,20 @@ public:
     }
 
     int create_wmi() {
-        thread_local bool library_inited = false;
+        thread_local bool co_inited = false;
         int hr;
-        if (!library_inited) {
-            hr = init_library();
+        if (!co_inited) {
+            hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+            if (FAILED(hr)) {
+                return hr;
+            }
+            co_inited = true;
+        }
+        static bool sec_inited = false;
+        if (!sec_inited) {
+            hr = init_security();
             if (hr) return hr;
-            library_inited = true;
+            sec_inited = true;
         }
         hr = create_services();
         if (hr) return hr;
