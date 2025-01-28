@@ -57,17 +57,20 @@ namespace recorder {
         std::optional<File> file_ = std::nullopt;
         InterleaveRingBuffer<S, 2, 480, 10> buffer_{};
 
+        bool started_ = false;
+        bool stopped_ = false;
+
     protected:
         void StartRecording(audio::SignalActiveData dat) {
-            auto zone = current_zone();
+            const auto zone = current_zone();
             zoned_time now{zone, std::chrono::time_point_cast<seconds>(system_clock::now())};
             const auto start_time = std::chrono::time_point_cast<seconds>(now.get_sys_time());
             const auto file_name = std::format("{:%Y-%m-%dT%H_%M_%S%z}@{}.ogg", now, name_);
             SPDLOG_INFO("Starting recording {}", file_name);
             auto file_path = uploader_->root_path() / file_name;
-            const auto fs = std::make_shared<std::ofstream>(file_path, std::ios::binary | std::ios::trunc | std::ios::out);
-            file_.emplace(
-                File{
+            const auto fs =
+                    std::make_shared<std::ofstream>(file_path, std::ios::binary | std::ios::trunc | std::ios::out);
+            file_.emplace(File{
                     .file_stream = fs,
                     .opus_encoder_ = std::move(
                             OggOpusEncoder(fs, AudioFormat{.channels = 2, .sampleRate = format_.sampleRate}, 32)),
@@ -90,11 +93,8 @@ namespace recorder {
             }
             file_->file_stream->close();
 
-            const auto started =
-                    std::chrono::duration_cast<seconds>(file_->start_time.time_since_epoch()).count();
-            const auto current =
-                    std::chrono::duration_cast<seconds>(system_clock::now().time_since_epoch())
-                            .count();
+            const auto started = std::chrono::duration_cast<seconds>(file_->start_time.time_since_epoch()).count();
+            const auto current = std::chrono::duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
             const auto metadata =
                     RecordMetadata{.started = static_cast<uint64_t>(started), .length_seconds = current - started};
 
@@ -133,20 +133,17 @@ namespace recorder {
         }
 
         void AfterIdle() {
-            auto cmd = controller_->SetStatus(name_, InternalStatusBase(InternalStatusType::idle));
-            auto visitor = [&]<typename T> (const T& v) {
-                using Type = std::decay_t<T>;
-                if constexpr (std::is_same_v<Type, models::CommandKill>) {
+            auto [command_type] = controller_->SetStatus(name_, InternalStatusBase(InternalStatusType::idle));
+            using enum models::CommandType;
+            switch (command_type) {
+                case kill:
+                case stop:
+                case reload:
                     this->Stop();
-                } else if constexpr (std::is_same_v<Type, models::CommandStop>) {
-                    this->Stop();
-                } else if constexpr (std::is_same_v<Type, models::CommandBase>) {
-                    if (v.type == models::CommandType::reload) {
-                        this->Stop();
-                    }
-                }
-            };
-            cmd.visit(visitor);
+                    break;
+                default:
+                    break;
+            }
         }
 
         void AfterPush() {
@@ -162,55 +159,41 @@ namespace recorder {
                     }
                 }
                 const auto md = RecordMetadata(started, current - started);
-                auto cmd = controller_->SetStatus(name_, InternalStatusWithMetadata(InternalStatusType::recording, md));
+                auto [command_type] =
+                        controller_->SetStatus(name_, InternalStatusWithMetadata(InternalStatusType::recording, md));
 
-                auto visitor = [&]<typename T>(const T &v) {
-                    using Type = std::decay_t<T>;
-                    if constexpr (std::is_same_v<Type, models::CommandKill>) {
+                using enum models::CommandType;
+                switch (command_type) {
+                    case kill:
+                    case stop:
+                    case reload:
                         this->FinishRecording(audio::SignalInactiveData{});
                         this->Stop();
-                    } else if constexpr (std::is_same_v<Type, models::CommandStop>) {
+                        break;
+                    case force_upload:
                         this->FinishRecording(audio::SignalInactiveData{});
-                        this->Stop();
-                    } else if constexpr (std::is_same_v<Type, models::CommandBase>) {
-                        using enum models::CommandType;
-                        switch (v.type) {
-                            case normal:
-                                break;
-                            case force_upload: {
-                                this->FinishRecording(audio::SignalInactiveData{});
-                                this->StartRecording(audio::SignalActiveData{
-                                        .timestamp = system_clock::now(),
-                                        .activationSource = "force_upload",
-                                });
-                                break;
-                            }
-                            case reload: {
-                                this->FinishRecording(audio::SignalInactiveData{});
-                                this->Stop();
-                                break;
-                            }
-                            default: {
-                                SPDLOG_ERROR("Unknown command type: {}", rfl::enum_to_string(v.type) );
-                                throw std::runtime_error("Unknown command type");
-                            }
-
-                        }
-                    } else {
-                        static_assert(rfl::always_false_v<Type>, "Unknown command type");
+                        this->StartRecording(audio::SignalActiveData{
+                                .timestamp = system_clock::now(),
+                                .activationSource = "force_upload",
+                        });
+                        break;
+                    case normal:
+                        break;
+                    default: {
+                        SPDLOG_ERROR("Unknown command type: {}", rfl::enum_to_string(command_type));
+                        throw std::runtime_error("Unknown command type");
                     }
-                };
-                cmd.visit(visitor);
+                }
             }
         }
 
     public:
-        using SourceFactory =
-                std::function<std::unique_ptr<ProcessAudioSource<S>>(AudioFormat format,
-                                                       typename audio::AudioSource<S>::CallBackT callback,
-                                                       const audio::SignalMonitorSilenceCallbacks &callbacks,
-                                                       uint32_t pid,
-                                                       bool loopback)>;
+        using SourceFactory = std::function<std::unique_ptr<ProcessAudioSource<S>>(
+                AudioFormat format,
+                typename audio::AudioSource<S>::CallBackT callback,
+                const audio::SignalMonitorSilenceCallbacks &callbacks,
+                uint32_t pid,
+                bool loopback)>;
 
         ProcessRecorder(const std::shared_ptr<Controller> &controller,
                         std::string name,
@@ -218,8 +201,7 @@ namespace recorder {
                         AudioFormat format,
                         uint32_t pid,
                         SourceFactory audio_source_factory)
-            : controller_(controller), name_(std::move(name)), uploader_(uploader), format_(format)
-        {
+            : controller_(controller), name_(std::move(name)), uploader_(uploader), format_(format) {
             auto callbacks = audio::SignalMonitorSilenceCallbacks(
                     [this](auto p) { StartRecording(p); }, [this](auto p) { FinishRecording(p); }, 4);
             auto callbacks_null = audio::SignalMonitorSilenceCallbacks(
@@ -229,16 +211,20 @@ namespace recorder {
         }
 
 
-
         void Play() {
-            mic_->Play();
-            process_->Play();
+            if (!started_) {
+                mic_->Play();
+                process_->Play();
+                started_ = true;
+            }
         }
 
         void Stop() {
-            mic_->Stop();
-            process_->Stop();
+            if (started_ && !stopped_) {
+                mic_->Stop();
+                process_->Stop();
+                stopped_ = true;
+            }
         }
-
     };
 } // namespace recorder

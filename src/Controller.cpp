@@ -1,12 +1,12 @@
 //
 // Created by pavel on 30.12.2024.
 //
-//module Controller;
+// module Controller;
 #include <controller.hpp>
 // import Api;
 #include <mutex>
-#include <variant>
 #include <ranges>
+#include <variant>
 
 #include <rfl/always_false.hpp>
 #include <rfl/enums.hpp>
@@ -59,83 +59,48 @@ namespace recorder {
 
     void Controller::HandleIncomingCommand(const models::Command &command) {
         std::lock_guard cmdl(command_mutex_);
-        auto command_visitor = [&](const auto &command) {
-            using Type = std::decay_t<decltype(command)>;
-            using enum CommandType;
-
-            if constexpr (std::is_same_v<Type, CommandBase>) {
-                switch (command.type) {
-                    case normal:
-                        break;
-                    case force_upload:
-                        for (auto &k : std::views::keys(commands_) ) {
-                            commands_.emplace(k, force_upload);
-                        }
-                        break;
-                    case reload: {
-                        auto global_cmd_setter = [&](const auto &c) {
-                            switch (c.type) {
-                                case kill:
-                                case stop:
-                                case force_upload:
-                                    break;
-                                default:
-                                    global_command_ = command;
-                            }
-                        };
-                        if (global_command_.has_value()) {
-                            global_command_.value().visit(global_cmd_setter);
-                        } else {
-                            global_command_ = command;
-                        }
-                        break;
-                    }
-                    default:
-                        throw std::runtime_error("Unknown command type on CommandBase");
+        using enum CommandType;
+        switch (command.type) {
+            case normal:
+                break;
+            case force_upload:
+                for (auto &k: std::views::keys(commands_)) {
+                    commands_.emplace(k, force_upload);
                 }
-            }
-            else if constexpr (std::is_same_v<Type, CommandStop>) {
-                auto global_cmd_setter = [&]<typename T>(const T &c) {
-                    using Type = std::decay_t<T>;
-                    switch (c.type) {
+                break;
+            case reload: {
+                if (global_command_.has_value()) {
+                    switch (global_command_.value().type) {
                         case kill:
-                            break;
                         case stop:
-                            if constexpr (std::is_same_v<Type, CommandStop>) {
-                                if (command.data && !c.data) {
-                                    global_command_ = command;
-                                }
-                            }
+                            break;
                         default:
                             global_command_ = command;
                     }
-                };
-                if (global_command_.has_value()) {
-                    global_command_.value().visit(global_cmd_setter);
                 } else {
                     global_command_ = command;
                 }
+                break;
             }
-            else if constexpr (std::is_same_v<Type, CommandKill>) {
-                auto global_cmd_setter = [&]<typename T>(const T &c) {
-                    using Type = std::decay_t<T>;
-                    if constexpr (std::is_same_v<Type, CommandKill>) {
-                        if (c.data > command.data)
+            case stop: {
+                if (global_command_.has_value()) {
+                    switch (global_command_.value().type) {
+                        case kill:
+                            break;
+                        default:
                             global_command_ = command;
-                    } else {
-                        global_command_ = command;
+                            break;
                     }
-                };
-                if (global_command_.has_value()) {
-                    global_command_.value().visit(global_cmd_setter);
-                } else {
-                    global_command_ = command;
                 }
-            } else {
-                static_assert(rfl::always_false_v<Type>, "Unknown command type");
+                break;
             }
-        };
-        command.visit(command_visitor);
+            case kill: {
+                global_command_ = command;
+                break;
+            }
+            default:
+                throw std::runtime_error("Unknown command type on CommandBase");
+        }
     }
 
     /**
@@ -175,16 +140,14 @@ namespace recorder {
                                     SPDLOG_DEBUG("Sending status: {}", rfl::enum_to_string(s.type));
                                 }
                             } else {
-                                    SPDLOG_DEBUG("Sending status: {}", rfl::enum_to_string(s.type));
+                                SPDLOG_DEBUG("Sending status: {}", rfl::enum_to_string(s.type));
                             }
                         });
                         if (auto res = api.SendStatus(status)) {
                             auto cmd = res.value();
-                            cmd.visit([&](const auto &s) {
-                                if (s.type != CommandType::normal) {
-                                    SPDLOG_INFO("Received command: {}", rfl::enum_to_string(s.type));
-                                }
-                            });
+                            if (cmd.type != CommandType::normal) {
+                                SPDLOG_INFO("Received command: {}", rfl::enum_to_string(cmd.type));
+                            }
                             HandleIncomingCommand(cmd);
                         } else {
                             SPDLOG_ERROR("Failed to send status: {}", res.error().value().what());
@@ -220,7 +183,7 @@ namespace recorder {
         }
         std::lock_guard lock(command_mutex_);
         auto cmd = commands_[name];
-        commands_[name] = models::CommandBase{.type = models::CommandType::normal};
+        commands_[name] = Command{.type = CommandType::normal};
         return cmd;
     }
 } // namespace recorder

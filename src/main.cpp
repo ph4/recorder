@@ -1,11 +1,11 @@
-#include <iostream>
-#include <string>
-#include <semaphore>
-#include <thread>
-#include <span>
 #include <fstream>
+#include <iostream>
+#include <semaphore>
+#include <span>
+#include <string>
+#include <thread>
 
-//Force include before Windows so it does not complain
+// Force include before Windows so it does not complain
 #include <httplib.h>
 
 // Workaround unresolved external symbol
@@ -50,8 +50,9 @@ struct RecorderItem {
 };
 
 int start() {
-    auto config_load = rfl::toml::load<LocalConfig>(config_path)
-            .and_then([](auto config) { return rfl::Result(std::make_shared<LocalConfig>(std::move(config))); });
+    auto config_load = rfl::toml::load<LocalConfig>(config_path).and_then([](auto config) {
+        return rfl::Result(std::make_shared<LocalConfig>(std::move(config)));
+    });
     if (!config_load) {
         auto a = config_load.error().value();
         SPDLOG_ERROR("Error reading config ({})", config_load.error().value().what());
@@ -84,8 +85,8 @@ int start() {
     const auto controller = std::make_shared<recorder::Controller>(api, 5000);
 
     auto audio_format = recorder::audio::AudioFormat{
-        .channels = 1,
-        .sampleRate = 16000,
+            .channels = 1,
+            .sampleRate = 16000,
     };
 
     recorder::ProcessLister pl;
@@ -130,7 +131,6 @@ int start() {
         std::this_thread::sleep_for(to_sleep);
     }
 }
-
 
 int main(const int argc, char const *argv[]) {
     setup_logger();

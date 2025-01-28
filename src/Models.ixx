@@ -79,19 +79,7 @@ namespace recorder::models {
 
     export enum class CommandType { normal, force_upload, reload, stop, kill };
 
-    export struct CommandBase {
+    export struct Command {
         CommandType type;
     };
-
-    export struct CommandStop {
-        CommandType type;
-        bool data;
-    };
-
-    export struct CommandKill {
-        CommandType type;
-        int data;
-    };
-
-    export using Command = rfl::Variant<CommandBase, CommandStop, CommandKill>;
 }

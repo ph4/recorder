@@ -12,7 +12,7 @@
 
 #include "rfl/TaggedUnion.hpp"
 
-//module Controller;
+// module Controller;
 import Api;
 import Models;
 
@@ -37,7 +37,7 @@ namespace recorder {
         std::unordered_map<std::string, InternalStatus> statuses_{};
 
         std::mutex command_mutex_{};
-        std::unordered_map<std::string, models::CommandBase> commands_{};
+        std::unordered_map<std::string, models::Command> commands_{};
 
         std::optional<models::Command> global_command_ = std::nullopt;
         std::atomic<models::StatusBase> global_status_ = models::StatusBase(models::StatusType::idle);
@@ -48,9 +48,10 @@ namespace recorder {
 
         std::shared_ptr<Api> api_;
         size_t status_interval_ms_;
+
     protected:
         models::Status GetAggregateStatus();
-        void HandleIncomingCommand(const models::Command& command);
+        void HandleIncomingCommand(const models::Command &command);
 
     public:
         Controller(const std::shared_ptr<Api> &api, size_t status_interval_ms);
