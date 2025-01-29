@@ -95,6 +95,8 @@ namespace recorder {
                 break;
             }
             case kill: {
+                // TODO: dont be so harsh
+                std::exit(0);
                 global_command_ = command;
                 break;
             }
@@ -121,11 +123,10 @@ namespace recorder {
     void Controller::StatusLoop() {
         while (!finishing_) {
             auto start = high_resolution_clock::now();
-            if (auto apio = api_->GetRegistered()) {
+            if (api_->EnsureAuthorized()) {
                 if (finishing_) {
                     break;
                 }
-                auto api = apio.value().get();
                 std::lock_guard lock(status_mutex_);
                 auto global_status = global_status_.load(std::memory_order_relaxed);
                 switch (global_status.type) {
@@ -143,7 +144,7 @@ namespace recorder {
                                 SPDLOG_DEBUG("Sending status: {}", rfl::enum_to_string(s.type));
                             }
                         });
-                        if (auto res = api.SendStatus(status)) {
+                        if (auto res = api_->SendStatus(status)) {
                             auto cmd = res.value();
                             if (cmd.type != CommandType::normal) {
                                 SPDLOG_INFO("Received command: {}", rfl::enum_to_string(cmd.type));
@@ -177,6 +178,7 @@ namespace recorder {
         statuses_.insert_or_assign(name, status);
         return PollCommand(name);
     }
+
     Command Controller::PollCommand(const std::string &name) {
         if (global_command_.has_value()) {
             return global_command_.value();
@@ -185,5 +187,12 @@ namespace recorder {
         auto cmd = commands_[name];
         commands_[name] = Command{.type = CommandType::normal};
         return cmd;
+    }
+
+    Command Controller::GetGlobalCommand() const {
+        if (global_command_.has_value()) {
+            return global_command_.value();
+        }
+        return Command{.type = CommandType::normal};
     }
 } // namespace recorder

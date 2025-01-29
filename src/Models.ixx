@@ -9,6 +9,10 @@ module;
 export module Models;
 
 namespace recorder::models {
+    export struct Authorize {
+        std::string session_token;
+    };
+
     export struct LocalConfig {
         const std::string api_root;
         const std::string name;
@@ -30,7 +34,7 @@ namespace recorder::models {
     export struct RemoteConfig {
         using Int = long;
         std::string name;
-        //std::optional<bool> keep_files = std::nullopt;
+        // std::optional<bool> keep_files = std::nullopt;
         Int status_interval_s;
         Int max_silence_seconds;
         Int window_size_ms;
@@ -46,8 +50,7 @@ namespace recorder::models {
         int64_t length_seconds;
     };
 
-    export struct Record {
-    };
+    export struct Record {};
 
     export struct Register {
         std::string name;
@@ -82,4 +85,4 @@ namespace recorder::models {
     export struct Command {
         CommandType type;
     };
-}
+} // namespace recorder::models

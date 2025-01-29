@@ -2,10 +2,10 @@
 // Created by pavel on 25.12.2024.
 //
 module;
+#include <filesystem>
 #include <memory>
 #include <queue>
 #include <string>
-#include <filesystem>
 
 #include <rfl.hpp>
 #include <rfl/json/load.hpp>
@@ -38,10 +38,9 @@ namespace recorder {
 
 
         void UploadLoop() {
-            SPDLOG_DEBUG("UploadLoop() is running in thread {}",  get_thread_id(std::this_thread::get_id()));
+            SPDLOG_DEBUG("UploadLoop() is running in thread {}", get_thread_id(std::this_thread::get_id()));
             while (auto file = upload_queue_.ConsumeSync()) {
-                std::optional<std::reference_wrapper<ApiRegistered>> apio;
-                while (!finishing_ && !((apio = api_->GetRegistered()))) {
+                while (!finishing_ && !api_->EnsureAuthorized()) {
                     for (auto i = 0; !finishing_ && i < 60; i++) {
                         std::this_thread::sleep_for(std::chrono::seconds(1));
                     }
@@ -53,14 +52,13 @@ namespace recorder {
                 if (finishing_) {
                     break;
                 }
-                auto api = apio.value().get();
-                if (const auto res = api.Upload(file->file_path, file->metadata)) {
+                if (const auto res = api_->Upload(file->file_path, file->metadata)) {
                     try {
                         auto json_path = file->file_path;
                         json_path.replace_extension(".json");
                         remove_all(json_path);
                         remove_all(file->file_path);
-                    } catch (const std::filesystem::filesystem_error& e) {
+                    } catch (const std::filesystem::filesystem_error &e) {
                         SPDLOG_WARN("Could not remove file {} : {}", file->file_path.string(), e.what());
                     }
                 } else {
@@ -75,9 +73,7 @@ namespace recorder {
         std::filesystem::path &root_path() { return root_path_; }
 
         explicit FileUploader(const std::shared_ptr<Api> &api, const std::filesystem::path &root_path)
-            : upload_thread_(std::thread(&FileUploader::UploadLoop, this)),
-              root_path_(root_path),
-              api_(api) {
+            : upload_thread_(std::thread(&FileUploader::UploadLoop, this)), root_path_(root_path), api_(api) {
 
             if (!exists(root_path)) {
                 create_directory(root_path);
@@ -96,12 +92,12 @@ namespace recorder {
             }
         }
 
-        void UploadFile(const UploadFile& file) { // NOLINT(*-convert-member-functions-to-static)
+        void UploadFile(const UploadFile &file) { // NOLINT(*-convert-member-functions-to-static)
             auto json_path = file.file_path;
             json_path.replace_extension(".json");
             try {
                 rfl::json::save<>(json_path.string(), file.metadata);
-            } catch (const std::exception& e) {
+            } catch (const std::exception &e) {
                 SPDLOG_ERROR("Could not save .json file for {}: {}", json_path.string(), e.what());
             }
 
@@ -110,7 +106,7 @@ namespace recorder {
         void AddOldFiles() {
             for (auto &entry: std::filesystem::directory_iterator(root_path_)) {
                 if (entry.is_regular_file()) {
-                    auto& metadata_path = entry.path();
+                    auto &metadata_path = entry.path();
                     if (metadata_path.extension() == ".json") {
                         auto audio_path = metadata_path;
                         audio_path.replace_extension(".ogg");
@@ -129,5 +125,4 @@ namespace recorder {
             }
         }
     };
-}
-
+} // namespace recorder

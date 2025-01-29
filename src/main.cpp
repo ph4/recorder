@@ -60,14 +60,22 @@ int start() {
     }
     auto local_config = config_load.value();
     auto api = std::make_shared<recorder::Api>(local_config);
-    auto res = api->Register().or_else([](auto e) {
-        SPDLOG_ERROR("Error registering API ({})", e.what());
+    auto res = api->Authorize().or_else([](auto e) {
+        SPDLOG_ERROR("Error authorizing API ({})", e.what());
         return e;
     });
 
 
+    auto api_a = api->EnsureAuthorized();
+
+    auto set_name_r = api->SetName();
+    if (set_name_r.error()) {
+        SPDLOG_ERROR("Error setting name {}", set_name_r.error().value().what());
+    }
+
+    auto remote_cfg = api->GetConfig();
     auto using_cached_remote_config = false;
-    auto remote_config_r = res.or_else([&](auto e) {
+    auto remote_config_r = remote_cfg.or_else([&](auto e) {
         SPDLOG_WARN("Using cached remote config");
         using_cached_remote_config = true;
         return rfl::toml::load<recorder::models::RemoteConfig>("remote_config.toml");
