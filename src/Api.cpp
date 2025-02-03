@@ -100,7 +100,7 @@ namespace recorder {
 
     [[nodiscard]]
     rfl::Result<models::RemoteConfig> Api::GetConfig() const {
-        auto res = client().Post(api_stem_ + "/get-config", headers_, "", "application/json");
+        auto res = client().Get(api_stem_ + "/get-config", headers_);
         if (const auto con = CheckConnectionError("/get-config", res); !con) {
             return con.error().value();
         }

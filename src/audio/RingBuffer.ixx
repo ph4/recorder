@@ -125,7 +125,7 @@ public:
     };
 
     std::span<T> remainder() {
-        return std::span<T>(data_.begin() + min_size_frames_ / chunk_samples_, min_size_frames_ % chunk_samples_);
+        return std::span<T>(data_.begin() + read_chunk_idx_ * chunk_samples_, min_size_frames_);
     };
 
     template<bool DoSum = false>

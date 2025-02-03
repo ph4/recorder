@@ -172,7 +172,7 @@ HRESULT WinCapture<S>::ActivateAudioInterface() {
             else RETURN_IF_FAILED(StringFromIID(DEVINTERFACE_AUDIO_CAPTURE_, &id));
         }
 
-        RETURN_IF_FAILED(
+        THROW_IF_FAILED(
             ActivateAudioInterfaceAsync(
                 m_pid == 0 ? id : VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
                 __uuidof(IAudioClient),
@@ -191,7 +191,7 @@ HRESULT WinCapture<S>::ActivateAudioInterface() {
         RETURN_IF_FAILED(hr);
         RETURN_IF_FAILED(audioInterface.copy_to(&m_AudioClient));
 
-        RETURN_IF_FAILED(
+        THROW_IF_FAILED(
             m_AudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED,
                 (m_loopback ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0) | AUDCLNT_STREAMFLAGS_EVENTCALLBACK |
                 AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
@@ -271,10 +271,13 @@ HRESULT WinCapture<S>::StopCapture() {
 
 template<typename S>
 HRESULT WinCapture<S>::CaptureLoop() const {
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
     while (m_DeviceState != DeviceState::Stopping) {
         if (!m_BufferReadyEvent.wait()) break;
         if FAILED(OnAudioSampleRequested()) break;
     }
+    m_AudioClient->Stop();
+    m_AudioClient->Reset();
     m_CaptureStoppedEvent.SetEvent();
     return S_OK;
 }

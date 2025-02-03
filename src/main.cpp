@@ -91,6 +91,7 @@ int start() {
 
     const auto uploader = std::make_shared<recorder::FileUploader>(api, std::filesystem::path("./records/"));
     const auto controller = std::make_shared<recorder::Controller>(api, 5000);
+    // controller->SetStatus("main", recorder::InternalStatusBase{.type = recorder::InternalStatusType::idle});
 
     auto audio_format = recorder::audio::AudioFormat{
             .channels = 1,
@@ -101,6 +102,35 @@ int start() {
     std::unordered_map<std::string, std::unique_ptr<RecorderItem>> recorders;
     while (true) {
         auto start = high_resolution_clock::now();
+        switch (auto cmd = controller->GetGlobalCommand().type) {
+            using enum recorder::models::CommandType;
+            case reload:
+            case stop:
+            case kill: {
+                bool all_stopped = true;
+                for (auto &recorder: recorders | std::views::values) {
+                    auto &rec = recorder->recorder;
+                    if (!rec->IsStopped() && rec->IsStarted()) {
+                        all_stopped = false;
+                    }
+                }
+                if (all_stopped) {
+                   if (cmd == reload) {
+                       return 0x0EADBEEF;
+                   } else {
+                       return 0;
+                   }
+                } else {
+                    auto elapsed = high_resolution_clock::now() - start;
+                    auto to_sleep = milliseconds(200) - elapsed;
+                    std::this_thread::sleep_for(to_sleep);
+                    continue;
+                }
+                break;
+            }
+            default:
+                break;
+        }
 
         auto playing_processes = pl.getAudioPlayingProcesses();
         std::unordered_set<std::string> whitelist;
@@ -138,6 +168,7 @@ int start() {
         auto to_sleep = milliseconds(200) - elapsed;
         std::this_thread::sleep_for(to_sleep);
     }
+    stop_loop: {}
 }
 
 int main(const int argc, char const *argv[]) {
@@ -147,9 +178,16 @@ int main(const int argc, char const *argv[]) {
     SPDLOG_INFO("Machine UUID = {}", uuid);
 
     std::thread recorder_thread([&] {
-        const auto res = start();
-        if (res != 0) {
-            std::exit(res);
+        while (true) {
+            const auto res = start();
+            if (res == 0x0EADBEEF) {
+                SPDLOG_INFO("Reloading");
+                //RELOAD
+            } else if (res != 0) {
+                std::exit(res);
+            } else {
+                break;
+            }
         }
     });
 

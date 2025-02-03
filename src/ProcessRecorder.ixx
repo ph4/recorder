@@ -54,11 +54,25 @@ namespace recorder {
         std::unique_ptr<ProcessAudioSource<S>> mic_;
         std::unique_ptr<ProcessAudioSource<S>> process_;
 
+        std::thread encode_thread_{};
+        std::condition_variable encode_condition_;
+        std::mutex encode_mutex_{};
+        bool encode_cond_{false};
+
+        std::thread stop_thread_{};
+
         std::optional<File> file_ = std::nullopt;
-        InterleaveRingBuffer<S, 2, 480, 10> buffer_{};
+        InterleaveRingBuffer<S, 2, 480, 50> buffer_{};
 
         bool started_ = false;
         bool stopped_ = false;
+    public:
+        bool IsStarted() {
+            return started_;
+        }
+        bool IsStopped() {
+            return stopped_;
+        }
 
     protected:
         void StartRecording(audio::SignalActiveData dat) {
@@ -85,7 +99,7 @@ namespace recorder {
 
         void FinishRecording(audio::SignalInactiveData dat) {
             SPDLOG_INFO("Finishing recording {}", file_->file_path.string());
-            file_->opus_encoder_.Push(buffer_.remainder());
+            // file_->opus_encoder_.Push(buffer_.remainder());
             buffer_.Clear();
             if (auto res = file_->opus_encoder_.Finalize()) {
                 SPDLOG_ERROR("Failed to finalize writer: {}", res);
@@ -104,7 +118,7 @@ namespace recorder {
 
         void MicIn(std::span<S> data) {
             if (!file_) {
-                AfterIdle();
+                PostIdle();
                 return;
             }
             auto can_push = buffer_.template CanPushSamples<0>();
@@ -114,12 +128,12 @@ namespace recorder {
             } else {
                 buffer_.PushChannel<0>(data);
             }
-            AfterPush();
+            PostWrite();
         }
 
         void ProcessIn(std::span<S> data) {
             if (!file_) {
-                AfterIdle();
+                PostIdle();
                 return;
             }
             auto can_push = buffer_.template CanPushSamples<1>();
@@ -129,63 +143,83 @@ namespace recorder {
             } else {
                 buffer_.PushChannel<1>(data);
             }
-            AfterPush();
+            PostWrite();
+        }
+        void PostIdle() {
+            // Notify encode because it handles status as well
+            encode_cond_ = true;
+            encode_condition_.notify_one();
+        };
+
+        void PostWrite() {
+            // Notify encode thread that it has work to do
+            encode_cond_ = true;
+            encode_condition_.notify_one();
         }
 
-        void AfterIdle() {
-            auto [command_type] = controller_->SetStatus(name_, InternalStatusBase(InternalStatusType::idle));
-            using enum models::CommandType;
-            switch (command_type) {
-                case kill:
-                case stop:
-                case reload:
-                    this->Stop();
+
+        void EncodeLoop() {
+            while (true) {
+                std::unique_lock lock(encode_mutex_);
+                encode_condition_.wait(lock, [this] { return this->encode_cond_; });
+                encode_cond_ = false;
+                if (stopped_ == true)
                     break;
-                default:
-                    break;
+
+                if (file_) {
+                    const auto started =
+                            std::chrono::duration_cast<seconds>(file_->start_time.time_since_epoch()).count();
+                    const auto current =
+                            std::chrono::duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
+                    {
+                        std::lock_guard guard(write_mutex_);
+                        while (buffer_.HasChunks()) {
+                            file_->opus_encoder_.Push(buffer_.Retrieve());
+                        }
+                    }
+                    const auto md = RecordMetadata(started, current - started);
+                    auto [command_type] = controller_->SetStatus(
+                            name_, InternalStatusWithMetadata(InternalStatusType::recording, md));
+
+                    using enum models::CommandType;
+                    switch (command_type) {
+                        case kill:
+                        case stop:
+                        case reload:
+                            this->FinishRecording(audio::SignalInactiveData{});
+                            this->Stop();
+                            break;
+                        case force_upload:
+                            this->FinishRecording(audio::SignalInactiveData{});
+                            this->StartRecording(audio::SignalActiveData{
+                                    .timestamp = system_clock::now(),
+                                    .activationSource = "force_upload",
+                            });
+                            break;
+                        case normal:
+                            break;
+                        default: {
+                            SPDLOG_ERROR("Unknown command type: {}", rfl::enum_to_string(command_type));
+                            throw std::runtime_error("Unknown command type");
+                        }
+                    }
+                } else {
+                    // IDLE
+                    auto [command_type] = controller_->SetStatus(name_, InternalStatusBase(InternalStatusType::idle));
+                    using enum models::CommandType;
+                    switch (command_type) {
+                        case kill:
+                        case stop:
+                        case reload:
+                            this->Stop();
+                            break;
+                        default:
+                            break;
+                    }
+                }
             }
         }
 
-        void AfterPush() {
-            if (file_) {
-                const auto started = std::chrono::duration_cast<seconds>(file_->start_time.time_since_epoch()).count();
-                const auto current =
-                        std::chrono::duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
-                {
-                    std::lock_guard guard(write_mutex_);
-
-                    while (buffer_.HasChunks()) {
-                        file_->opus_encoder_.Push(buffer_.Retrieve());
-                    }
-                }
-                const auto md = RecordMetadata(started, current - started);
-                auto [command_type] =
-                        controller_->SetStatus(name_, InternalStatusWithMetadata(InternalStatusType::recording, md));
-
-                using enum models::CommandType;
-                switch (command_type) {
-                    case kill:
-                    case stop:
-                    case reload:
-                        this->FinishRecording(audio::SignalInactiveData{});
-                        this->Stop();
-                        break;
-                    case force_upload:
-                        this->FinishRecording(audio::SignalInactiveData{});
-                        this->StartRecording(audio::SignalActiveData{
-                                .timestamp = system_clock::now(),
-                                .activationSource = "force_upload",
-                        });
-                        break;
-                    case normal:
-                        break;
-                    default: {
-                        SPDLOG_ERROR("Unknown command type: {}", rfl::enum_to_string(command_type));
-                        throw std::runtime_error("Unknown command type");
-                    }
-                }
-            }
-        }
 
     public:
         using SourceFactory = std::function<std::unique_ptr<ProcessAudioSource<S>>(
@@ -206,8 +240,9 @@ namespace recorder {
                     [this](auto p) { StartRecording(p); }, [this](auto p) { FinishRecording(p); }, 4);
             auto callbacks_null = audio::SignalMonitorSilenceCallbacks(
                     [this](auto) {}, [this](auto) {}, std::numeric_limits<size_t>::max());
-            mic_ = audio_source_factory(format, [this](auto p) { MicIn(p); }, callbacks_null, 0, false);
-            process_ = audio_source_factory(format, [this](auto p) { ProcessIn(p); }, callbacks, pid, true);
+            mic_ = audio_source_factory(format, [this](auto p) { if (this->file_) MicIn(p); }, callbacks_null, 0, false);
+            process_ = audio_source_factory(format, [this](auto p) { if (this->file_) ProcessIn(p); }, callbacks, pid, true);
+            encode_thread_ = std::thread(std::bind(&ProcessRecorder::EncodeLoop, this));
         }
 
 
@@ -221,9 +256,21 @@ namespace recorder {
 
         void Stop() {
             if (started_ && !stopped_) {
-                mic_->Stop();
-                process_->Stop();
                 stopped_ = true;
+                stop_thread_ = std::thread([&] {
+                    mic_->Stop();
+                    process_->Stop();
+                    if (encode_thread_.joinable()) {
+                        PostWrite();
+                        encode_thread_.join();
+                    }
+                });
+                stop_thread_.detach();
+            }
+        }
+        void Join() {
+            if (stop_thread_.joinable()) {
+                stop_thread_.join();
             }
         }
     };

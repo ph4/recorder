@@ -91,6 +91,8 @@ namespace recorder {
                             global_command_ = command;
                             break;
                     }
+                } else {
+                    global_command_ = command;
                 }
                 break;
             }
@@ -171,6 +173,11 @@ namespace recorder {
             auto elapsed = high_resolution_clock::now() - start;
             std::this_thread::sleep_for(milliseconds(status_interval_ms_) - elapsed);
         }
+    }
+
+    void Controller::Reset() {
+        global_command_ = std::nullopt;
+        statuses_.clear();
     }
 
     Command Controller::SetStatus(const std::string &name, const InternalStatus &status) {

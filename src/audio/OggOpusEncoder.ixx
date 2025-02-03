@@ -51,11 +51,12 @@ namespace recorder::audio {
         std::unique_ptr<OpusEncoder, decltype(&opusEncoderDeleter)> encoder_;
         ogg_stream_state ogg_stream_state_{};
 
+
+    public:
         [[nodiscard]] size_t samples_in_opus_frame() const {
             return OpusFrameSizeMS * format_.sampleRate * format_.channels / 1000;
         }
 
-    public:
         OggOpusEncoder(std::shared_ptr<std::ostream> writer_, const AudioFormat format, const int32_t bitrate_kbps)
             : writer_(std::move(writer_)),
               format_(format),
@@ -135,12 +136,13 @@ namespace recorder::audio {
 
         int Finalize() {
             // Pushing zeroes sometimes crashes the encoder
-            frame_buffer_->Push(std::vector<int16_t>(samples_in_opus_frame(), 1));
-            auto res = EncodeFrame(frame_buffer_->Retrieve(), true);
-            if (res != 0) {
-                SPDLOG_ERROR("Flush err = {}", res);
-                return res;
-            }
+            // frame_buffer_->Push(std::vector<int16_t>(samples_in_opus_frame(), 1));
+            // frame_buffer_->Push(std::vector<int16_t>(samples_in_opus_frame() / 2, 1));
+            // auto res = EncodeFrame(frame_buffer_->Retrieve(), true);
+            // if (res != 0) {
+            //     SPDLOG_ERROR("EncoderFrame err = {}", res);
+            //     return res;
+            // }
             ogg_stream_clear(&ogg_stream_state_);
             return 0;
         }
@@ -177,6 +179,7 @@ namespace recorder::audio {
 
             auto res = ogg_stream_packetin(&ogg_stream_state_, &packet);
             if (res == -1) {
+                SPDLOG_ERROR("ogg_stream_packetin error -1");
                 return res;
             }
 

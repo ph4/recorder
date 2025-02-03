@@ -59,6 +59,7 @@ namespace recorder {
         void StatusLoop();
 
 
+        void Reset();
         models::Command SetStatus(const std::string &name, const InternalStatus &status);
         models::Command PollCommand(const std::string &name);
         [[nodiscard]] models::Command GetGlobalCommand() const;

@@ -139,12 +139,15 @@ namespace recorder::audio::windows {
         };
 
         void Stop() override {
+            if (!started_) return;
             if (capture_->GetDeviceState() == DeviceState::Capturing) {
                 if (const auto res = capture_->StopCapture()) {
                     throw std::runtime_error("StopCapture failed: " + hresult_to_string(res));
                 }
             }
-            thread_.join();
+            if (thread_.joinable()) {
+                thread_.join();
+            }
         }
 
         uint32_t GetPid() override {
