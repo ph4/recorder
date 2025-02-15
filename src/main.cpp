@@ -11,6 +11,8 @@
 // Workaround unresolved external symbol
 #include <wrl.h>
 
+#include <shlobj_core.h>
+
 #include <yyjson.h>
 
 
@@ -18,12 +20,16 @@
 #include <ranges>
 
 #include <rfl.hpp>
+#include <rfl/Variant.hpp>
 #include <rfl/Timestamp.hpp>
 #include <rfl/toml/load.hpp>
+#include <rfl/toml/save.hpp>
+
+#include <Velopack.hpp>
+
 #include "hwid.hpp"
 #include "logging.hpp"
 
-#include "rfl/toml/save.hpp"
 
 import AudioSource;
 import WinAudioSource;
@@ -42,14 +48,17 @@ using namespace std::chrono;
 
 std::binary_semaphore write_complete{0};
 
-const std::string config_path = "config.toml";
 
 struct RecorderItem {
     std::unique_ptr<recorder::ProcessRecorder<int16_t>> recorder;
     recorder::ProcessInfo process;
 };
 
+std::shared_ptr<LocalConfig> local_config;
+std::string app_path{};
+
 int start() {
+    auto config_path = app_path + "\\config.toml";
     auto config_load = rfl::toml::load<LocalConfig>(config_path).and_then([](auto config) {
         return rfl::Result(std::make_shared<LocalConfig>(std::move(config)));
     });
@@ -58,7 +67,7 @@ int start() {
         SPDLOG_ERROR("Error reading config ({})", config_load.error().value().what());
         return 1;
     }
-    auto local_config = config_load.value();
+    local_config = config_load.value();
     auto api = std::make_shared<recorder::Api>(local_config);
     auto res = api->Authorize().or_else([](auto e) {
         SPDLOG_ERROR("Error authorizing API ({})", e.what());
@@ -89,7 +98,7 @@ int start() {
         rfl::toml::save<>("remote_config.toml", remote_config);
     }
 
-    const auto uploader = std::make_shared<recorder::FileUploader>(api, std::filesystem::path("./records/"));
+    const auto uploader = std::make_shared<recorder::FileUploader>(api, std::filesystem::path(app_path + "/records/"));
     const auto controller = std::make_shared<recorder::Controller>(api, 5000);
     // controller->SetStatus("main", recorder::InternalStatusBase{.type = recorder::InternalStatusType::idle});
 
@@ -115,11 +124,11 @@ int start() {
                     }
                 }
                 if (all_stopped) {
-                   if (cmd == reload) {
-                       return 0x0EADBEEF;
-                   } else {
-                       return 0;
-                   }
+                    if (cmd == reload) {
+                        return 0x0EADBEEF;
+                    } else {
+                        return 0;
+                    }
                 } else {
                     auto elapsed = high_resolution_clock::now() - start;
                     auto to_sleep = milliseconds(200) - elapsed;
@@ -168,11 +177,62 @@ int start() {
         auto to_sleep = milliseconds(200) - elapsed;
         std::this_thread::sleep_for(to_sleep);
     }
-    stop_loop: {}
+stop_loop: {}
+}
+
+std::unique_ptr<Velopack::UpdateManager> update_manager;
+
+static void update_app() {
+    auto &manager = update_manager;
+    auto updInfo = manager->CheckForUpdates();
+    if (!updInfo.has_value()) {
+        return; // no updates available
+    }
+
+    // download the update, optionally providing progress callbacks
+    manager->DownloadUpdates(updInfo.value());
+
+    // prepare the Updater in a new process, and wait 60 seconds for this process to exit
+    manager->WaitExitThenApplyUpdate(updInfo.value());
+    exit(0); // exit the app to apply the update
 }
 
 int main(const int argc, char const *argv[]) {
     setup_logger();
+    vpkc_set_logger(
+            [](void *p_user_data, const char *psz_level, const char *psz_message) {
+                spdlog::log(spdlog::level::from_str(psz_level), psz_message);
+            },
+            nullptr);
+
+    bool installed;
+#ifdef DEBUG
+    installed = false;
+    std::string binary_path = "";
+#else
+    installed = true;
+    try {
+        update_manager = std::make_unique<Velopack::UpdateManager>("C:\\Users\\pavel\\CLionProjects\\recorder\\Releases");
+        SPDLOG_INFO("update_manager->GetAppId() {}", update_manager->GetAppId());
+    } catch (const std::exception &e) {
+        SPDLOG_ERROR(e.what());
+        return EXIT_FAILURE;
+    }
+
+    //MAX_PATH
+    char appdata[260];
+    if (const auto res = SHGetFolderPathA(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, appdata)) {
+        SPDLOG_ERROR(hresult_to_string(res));
+        return 1;
+    }
+    app_path = appdata + std::string("\\") + update_manager->GetAppId();
+    auto binary_path = app_path + "\\current\\recorder.exe";
+#endif
+    Velopack::VelopackApp::Build()
+            .Run();
+    if (installed) {
+        update_app();
+    }
 
     auto uuid = get_uuid();
     SPDLOG_INFO("Machine UUID = {}", uuid);
@@ -182,7 +242,7 @@ int main(const int argc, char const *argv[]) {
             const auto res = start();
             if (res == 0x0EADBEEF) {
                 SPDLOG_INFO("Reloading");
-                //RELOAD
+                // RELOAD
             } else if (res != 0) {
                 std::exit(res);
             } else {

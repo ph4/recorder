@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 include(FetchContent)
-set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+# set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 FetchContent_Declare(
         wil
         GIT_REPOSITORY https://github.com/microsoft/wil.git
@@ -40,8 +40,8 @@ FetchContent_Declare(
 )
 FetchContent_Declare(
         reflect-cpp
-        GIT_REPOSITORY https://github.com/getml/reflect-cpp.git
-        GIT_TAG v0.16.0
+        GIT_REPOSITORY https://github.com/ph4/reflect-cpp.git
+        GIT_TAG origin/cmake-fix
 )
 FetchContent_Declare(
         tomlplusplus
@@ -56,6 +56,7 @@ FetchContent_Declare(
 
 set(TOMLPLUSPLUS_INSTALL ON)
 
+set(REFLECTCPP_USE_VCPKG_DEFAULT OFF)
 set(REFLECTCPP_USE_VCPKG OFF)
 set(REFLECTCPP_TOML ON)
 set(WIL_BUILD_TESTS OFF)
@@ -66,6 +67,17 @@ add_definitions(-DNOMINMAX)
 add_definitions(-DCPPHTTPLIB_OPENSSL_SUPPORT)
 add_definitions(-DCPPHTTPLIB_STATIC) # Not sure if neeed
 
+add_library(Velopack SHARED IMPORTED)
+set_target_properties(
+        Velopack PROPERTIES
+        IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/velopack/lib-static/velopack_libc_win_x64_msvc.lib"
+        IMPORTED_LOCATION_RELEASE "${CMAKE_SOURCE_DIR}/velopack/lib-static/velopack_libc_win_x64_msvc.lib"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/velopack/include"
+)
+
+if(DEBUG)
+    ADD_DEFINITIONS(-DDEBUG)
+endif (DEBUG)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/**/*.cpp")
 file(GLOB_RECURSE MODULES "src/*.ixx" "src/**/*.ixx")
@@ -80,12 +92,14 @@ target_sources(recorder
         PUBLIC FILE_SET all_my_modules TYPE CXX_MODULES FILES ${MODULES}
 )
 
-target_link_libraries(recorder WIL::WIL spdlog::spdlog hmac_sha256 Opus::opus Ogg::ogg httplib::httplib reflectcpp)
+target_link_libraries(recorder WIL::WIL spdlog::spdlog hmac_sha256 Opus::opus Ogg::ogg httplib::httplib reflectcpp Velopack)
 
 target_link_libraries(recorder
         mmdevapi.lib
         wbemuuid.lib
         winhttp.lib
+        bcrypt.lib # Velopack
+        ntdll.lib # Velopack
 )
 
 project(recorder-tests)
