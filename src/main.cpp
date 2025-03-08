@@ -208,25 +208,15 @@ int main(const int argc, char const *argv[]) {
     bool installed;
 #ifdef DEBUG
     installed = false;
-    std::string binary_path = "";
 #else
     installed = true;
     try {
-        update_manager = std::make_unique<Velopack::UpdateManager>("C:\\Users\\pavel\\CLionProjects\\recorder\\Releases");
+        update_manager = std::make_unique<Velopack::UpdateManager>(VELOPACK_UPDATE_ROOT);
         SPDLOG_INFO("update_manager->GetAppId() {}", update_manager->GetAppId());
     } catch (const std::exception &e) {
         SPDLOG_ERROR(e.what());
         return EXIT_FAILURE;
     }
-
-    //MAX_PATH
-    char appdata[260];
-    if (const auto res = SHGetFolderPathA(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, appdata)) {
-        SPDLOG_ERROR(hresult_to_string(res));
-        return 1;
-    }
-    app_path = appdata + std::string("\\") + update_manager->GetAppId();
-    auto binary_path = app_path + "\\current\\recorder.exe";
 #endif
     Velopack::VelopackApp::Build()
             .Run();

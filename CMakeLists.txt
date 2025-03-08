@@ -79,6 +79,12 @@ if(DEBUG)
     ADD_DEFINITIONS(-DDEBUG)
 endif (DEBUG)
 
+set(VELOPACK_UPDATE_ROOT $ENV{VELOPCAK_UPDATE_ROOT})
+
+if(VELOPACK_UPDATE_ROOT)
+    add_compile_definitions(VELOPACK_UPDATE_ROOT="${VELOPACK_UPDATE_ROOT}")
+endif()
+
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/**/*.cpp")
 file(GLOB_RECURSE MODULES "src/*.ixx" "src/**/*.ixx")
 
