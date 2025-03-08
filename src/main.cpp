@@ -55,7 +55,7 @@ struct RecorderItem {
 };
 
 std::shared_ptr<LocalConfig> local_config;
-std::string app_path{};
+std::string app_path{"."};
 
 int start() {
     auto config_path = app_path + "\\config.toml";
