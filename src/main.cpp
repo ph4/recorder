@@ -197,7 +197,28 @@ static void update_app() {
     exit(0); // exit the app to apply the update
 }
 
+void SetWorkdirToParent() {
+    // Get the full path to the running executable
+    char path[MAX_PATH];
+    if (GetModuleFileName(NULL, path, MAX_PATH)) { // GetModuleFileNameA for char-based version
+        // Get the directory from the full path
+        auto directory = std::filesystem::path(path).parent_path().parent_path();
+
+        // Set the current working directory to the executable's directory
+        if (!SetCurrentDirectoryW(directory.c_str())) { // SetCurrentDirectoryW for wide string
+            throw std::runtime_error("Failed to set working directory");
+        }
+
+        std::cout << "Current working directory set to: " << directory << std::endl;
+    } else {
+        throw std::runtime_error("Failed to get executable path");
+    }
+}
+
 int main(const int argc, char const *argv[]) {
+#ifndef DEBUG
+    SetWorkdirToParent();
+#endif
     setup_logger();
     vpkc_set_logger(
             [](void *p_user_data, const char *psz_level, const char *psz_message) {
