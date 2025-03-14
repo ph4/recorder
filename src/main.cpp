@@ -219,6 +219,7 @@ int main(const int argc, char const *argv[]) {
 #ifndef DEBUG
     SetWorkdirToParent();
 #endif
+    ShowWindow(GetConsoleWindow(), SW_HIDE); // Hide terminal
     setup_logger();
     vpkc_set_logger(
             [](void *p_user_data, const char *psz_level, const char *psz_message) {
