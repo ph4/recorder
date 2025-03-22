@@ -25,7 +25,6 @@
 #include <rfl/toml/load.hpp>
 #include <rfl/toml/save.hpp>
 
-#include <Velopack.hpp>
 
 #include "hwid.hpp"
 #include "logging.hpp"
@@ -38,15 +37,16 @@ import Models;
 import Api;
 import FileUploader;
 import ProcessLister;
+import Velopack;
 
 using recorder::models::LocalConfig;
 
 using namespace std::chrono;
+namespace rv = std::ranges::views;
 
 #define FORMAT sizeof(uint16_t)
 
-
-std::binary_semaphore write_complete{0};
+steady_clock::time_point last_update_time{};
 
 
 struct RecorderItem {
@@ -143,12 +143,11 @@ int start() {
 
         auto playing_processes = pl.getAudioPlayingProcesses();
         std::unordered_set<std::string> whitelist;
-        auto wl = remote_config.app_configs |
-                  std::ranges::views::transform([](recorder::models::App app) { return app.exe_name; });
+        auto wl = remote_config.app_configs | rv::transform([](recorder::models::App app) { return app.exe_name; });
         for (auto e: wl) {
             whitelist.insert(e);
         }
-        auto new_processes = playing_processes | std::ranges::views::filter([&](recorder::ProcessInfo e) {
+        auto new_processes = playing_processes | rv::filter([&](recorder::ProcessInfo e) {
                                  return whitelist.contains(e.process_name()) && !recorders.contains(e.process_name());
                              });
         auto factory = [](auto fmt, auto cb, auto scb, auto pid, auto lb) {
@@ -180,22 +179,6 @@ int start() {
 stop_loop: {}
 }
 
-std::unique_ptr<Velopack::UpdateManager> update_manager;
-
-static void update_app() {
-    auto &manager = update_manager;
-    auto updInfo = manager->CheckForUpdates();
-    if (!updInfo.has_value()) {
-        return; // no updates available
-    }
-
-    // download the update, optionally providing progress callbacks
-    manager->DownloadUpdates(updInfo.value());
-
-    // prepare the Updater in a new process, and wait 60 seconds for this process to exit
-    manager->WaitExitThenApplyUpdate(updInfo.value());
-    exit(0); // exit the app to apply the update
-}
 
 void SetWorkdirToParent() {
     // Get the full path to the running executable
@@ -221,30 +204,9 @@ int main(const int argc, char const *argv[]) {
 #endif
     ShowWindow(GetConsoleWindow(), SW_HIDE); // Hide terminal
     setup_logger();
-    vpkc_set_logger(
-            [](void *p_user_data, const char *psz_level, const char *psz_message) {
-                spdlog::log(spdlog::level::from_str(psz_level), psz_message);
-            },
-            nullptr);
-
-    bool installed;
-#ifdef DEBUG
-    installed = false;
-#else
-    installed = true;
-    try {
-        update_manager = std::make_unique<Velopack::UpdateManager>(VELOPACK_UPDATE_ROOT);
-        SPDLOG_INFO("update_manager->GetAppId() {}", update_manager->GetAppId());
-    } catch (const std::exception &e) {
-        SPDLOG_ERROR(e.what());
-        return EXIT_FAILURE;
-    }
-#endif
-    Velopack::VelopackApp::Build()
-            .Run();
-    if (installed) {
-        update_app();
-    }
+    if (const auto res = recorder::velopack::init_velopack()) {
+        return res;
+    };
 
     auto uuid = get_uuid();
     SPDLOG_INFO("Machine UUID = {}", uuid);

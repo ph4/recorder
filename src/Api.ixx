@@ -41,6 +41,8 @@ namespace recorder {
 
         rfl::Result<std::monostate> SetName() const;
 
+        rfl::Result<models::RemoteConfig> Register() const;
+
         rfl::Result<std::monostate> Upload(const std::filesystem::path &path, const models::RecordMetadata &metadata);
 
         rfl::Result<models::Command> SendStatus(const models::Status &status);

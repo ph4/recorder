@@ -54,6 +54,8 @@ namespace recorder::models {
 
     export struct Register {
         std::string name;
+        std::string version;
+        std::string channel;
     };
 
     export enum class StatusType {

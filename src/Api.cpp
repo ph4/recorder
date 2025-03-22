@@ -10,6 +10,7 @@ module;
 #include "util.hpp"
 
 module Api;
+import Velopack;
 
 namespace recorder {
     bool Api::EnsureAuthorized() {
@@ -87,7 +88,11 @@ namespace recorder {
 
     [[nodiscard]]
     rfl::Result<std::monostate> Api::SetName() const {
-        const auto body = rfl::json::write<>(models::Register{config_->name});
+        const auto body = rfl::json::write<>(models::Register{
+                .name = config_->name,
+                .version = velopack::get_version(),
+                .channel = velopack::get_update_channel(),
+        });
         auto res = client().Post(api_stem_ + "/set-name", headers_, body, "application/json");
         if (const auto con = CheckConnectionError("/set-name", res); !con) {
             return con.error().value();
@@ -102,6 +107,24 @@ namespace recorder {
     rfl::Result<models::RemoteConfig> Api::GetConfig() const {
         auto res = client().Get(api_stem_ + "/get-config", headers_);
         if (const auto con = CheckConnectionError("/get-config", res); !con) {
+            return con.error().value();
+        }
+        if (res->status != httplib::OK_200) {
+            return rfl::Error(std::format("Failed to register client: {}", res->status));
+        }
+        SPDLOG_INFO("Got config : {}", res->body);
+        return rfl::json::read<models::RemoteConfig>(res->body);
+    }
+
+    [[nodiscard]]
+    rfl::Result<models::RemoteConfig> Api::Register() const {
+        const auto body = rfl::json::write<>(models::Register{
+                .name = config_->name,
+                .version = velopack::get_version(),
+                .channel = velopack::get_update_channel(),
+        });
+        auto res = client().Get(api_stem_ + "/register-client", headers_);
+        if (const auto con = CheckConnectionError("/register-client", res); !con) {
             return con.error().value();
         }
         if (res->status != httplib::OK_200) {
