@@ -147,7 +147,7 @@ namespace recorder {
                 {.name = "metadata", .content = metadata_json, .filename = "", .content_type = "application/json"});
 
         std::ostringstream file_content;
-        file_content << std::ifstream(path.string()).rdbuf();
+        file_content << std::ifstream(path.string(), std::ios::binary).rdbuf();
         multipart.push_back({.name = "file",
                              .content = file_content.str(),
                              .filename = path.filename().string(),
