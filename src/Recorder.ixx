@@ -4,7 +4,8 @@
 module;
 #include <memory>
 #include <unordered_set>
-#include <Controller.hpp>
+
+#include "Controller.hpp"
 
 export module Recorder;
 import Api;
@@ -23,7 +24,7 @@ struct RecorderItem {
 
 namespace recorder {
     export class Recorder {
-         std::shared_ptr<models::LocalConfig> config_{};
+        std::shared_ptr<models::LocalConfig> config_{};
         models::RemoteConfig remote_config_{};
         std::shared_ptr<Api> api_{};
         std::shared_ptr<FileUploader> uploader_{};

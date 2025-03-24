@@ -14,6 +14,7 @@ module;
 export module WinAudioSource;
 import AudioSource;
 import SignalMonitor;
+import AudioDeviceMonitor;
 
 namespace recorder::audio::windows {
     using namespace recorder::audio;
@@ -26,6 +27,7 @@ namespace recorder::audio::windows {
 
 
         bool started_ = false;
+        std::unique_ptr<AudioDeviceMonitor<S>> device_monitor = nullptr;
         std::mutex started_mutex_{};
         std::condition_variable started_condition_{};
         CallBackT callback_{};
@@ -92,6 +94,9 @@ namespace recorder::audio::windows {
 
             if (!loopback && pid != 0) {
                 throw std::invalid_argument("pid is invalid");
+            }
+            if (loopback) {
+                device_monitor = std::make_unique<AudioDeviceMonitor<S>>(format, callback);
             }
 
             THROW_IF_FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
