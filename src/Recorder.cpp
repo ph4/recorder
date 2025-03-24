@@ -154,8 +154,6 @@ namespace recorder {
     }
 
     void Recorder::Init() {
-        this->recorders_ = {};
-
         SPDLOG_DEBUG("Loading config");
         this->LoadConfig();
         this->api_ = std::make_shared<Api>(this->config_);
@@ -169,7 +167,6 @@ namespace recorder {
         // controller->SetStatus("main", recorder::InternalStatusBase{.type = recorder::InternalStatusType::idle});
 
         const auto wl = this->remote_config_.app_configs | rv::transform([](models::App app) { return app.exe_name; });
-        app_whitelist_ = {};
         for (auto e: wl) {
             app_whitelist_.insert(e);
         }
@@ -180,16 +177,4 @@ namespace recorder {
         }
     }
 
-    void Recorder::MainLoop() {
-        SPDLOG_INFO("Starting MainLoop...");
-        while (true) {
-            Init();
-            if (ListenProcesses()) {
-                SPDLOG_INFO("Reloading...");
-            } else {
-                SPDLOG_INFO("Exiting...");
-                break;
-            }
-        }
-    }
 } // namespace recorder

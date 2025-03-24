@@ -46,13 +46,11 @@ namespace recorder {
 
         void RemoveStoppedProcesses();
 
-        bool ListenProcesses();
-
-        void Init();
-
     public:
         Recorder() = default;
 
-        void MainLoop();
+        void Init();
+
+        bool ListenProcesses();
     };
 }

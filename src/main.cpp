@@ -55,12 +55,21 @@ int main(const int argc, char const *argv[]) {
     auto uuid = get_uuid();
     SPDLOG_INFO("Machine UUID = {}", uuid);
 
-    auto recorder = recorder::Recorder();
     std::thread recorder_thread([&] {
         try {
-            recorder.MainLoop();
+            SPDLOG_INFO("Starting MainLoop...");
+            while (true) {
+                auto recorder = recorder::Recorder();
+                recorder.Init();
+                if (recorder.ListenProcesses()) {
+                    SPDLOG_INFO("Reloading...");
+                } else {
+                    SPDLOG_INFO("Exiting...");
+                    break;
+                }
+            }
         } catch (const std::exception &e) {
-            SPDLOG_ERROR("Exception: {}", e.what());
+            SPDLOG_ERROR("Main loop exception: {}", e.what());
         }
     });
 

@@ -42,6 +42,8 @@ public:
 
     WinCapture &operator=(WinCapture &&) = default;
 
+    ~WinCapture() override;
+
     using CallBackT = std::function<void(std::span<S>)>;
 
     WinCapture(recorder::audio::AudioFormat format,
@@ -133,6 +135,19 @@ WinCapture<S>::WinCapture(const recorder::audio::AudioFormat format, const uint3
     m_bufferSizeNs = bufferSizeNs;
 
     m_pid = pid;
+}
+
+
+template<typename S>
+WinCapture<S>::~WinCapture() {
+    switch (m_DeviceState) {
+        case DeviceState::Stopping:
+            m_CaptureStoppedEvent.wait();
+        break;
+        case DeviceState::Capturing:
+            StopCapture();
+        break;
+    }
 }
 
 template<typename S>
@@ -265,6 +280,8 @@ template<typename S>
 HRESULT WinCapture<S>::StopCapture() {
     m_DeviceState = DeviceState::Stopping;
     m_CaptureStoppedEvent.wait();
+    m_AudioClient->Stop();
+    m_AudioClient->Reset();
     m_DeviceState = DeviceState::Stopped;
     return S_OK;
 }
@@ -276,8 +293,6 @@ HRESULT WinCapture<S>::CaptureLoop() const {
         if (!m_BufferReadyEvent.wait()) break;
         if FAILED(OnAudioSampleRequested()) break;
     }
-    m_AudioClient->Stop();
-    m_AudioClient->Reset();
     m_CaptureStoppedEvent.SetEvent();
     return S_OK;
 }

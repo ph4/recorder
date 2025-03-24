@@ -89,8 +89,7 @@ namespace recorder::audio::windows {
                                    callback_(audio);
                                },
                                pid,
-                               loopback)
-                               .Detach()) {
+                               loopback)) {
 
             if (!loopback && pid != 0) {
                 throw std::invalid_argument("pid is invalid");
@@ -165,6 +164,12 @@ namespace recorder::audio::windows {
         bool HasSignal() override {
             return active_;
         };
+
+        ~WinAudioSource() override {
+            if (thread_.joinable()) {
+                thread_.join();
+            }
+        }
     };
 
     template class WinAudioSource<int16_t>;
