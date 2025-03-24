@@ -31,7 +31,6 @@ namespace recorder {
             throw std::runtime_error(config_load.error().value().what());
         }
         this->config_ = config_load.value();
-        this->api_ = std::make_shared<Api>(this->config_);
     }
 
     void Recorder::Register() {
@@ -155,10 +154,14 @@ namespace recorder {
     }
 
     void Recorder::Init() {
+        this->recorders_ = {};
+
         SPDLOG_DEBUG("Loading config");
         this->LoadConfig();
+        this->api_ = std::make_shared<Api>(this->config_);
         SPDLOG_DEBUG("Registering");
         this->Register();
+
         SPDLOG_TRACE("Creating uploader");
         this->uploader_ = std::make_shared<FileUploader>(api_, std::filesystem::path("./records/"));
         SPDLOG_TRACE("Creating controller");
