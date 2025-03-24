@@ -38,9 +38,9 @@ namespace recorder {
 
         void Register();
 
-        void WaitAllStopped();
+        void StopAll();
 
-        void StartRecordingOnProcess(const ProcessInfo &pi);
+        void StartListeningProcess(const ProcessInfo &pi);
 
         void AddNewProcesses();
 

@@ -70,27 +70,15 @@ namespace recorder {
         }
     }
 
-    void Recorder::WaitAllStopped() {
-        SPDLOG_TRACE("Recorder::WaitAllStopped()");
-        while (true) {
-            auto start = high_resolution_clock::now();
-            bool all_stopped = true;
-            for (const auto &recorder: this->recorders_ | std::views::values) {
-                const auto &rec = recorder->recorder;
-                if (!rec->IsStopped() && rec->IsStarted()) {
-                    all_stopped = false;
-                }
-            }
-            if (all_stopped) {
-                return;
-            }
-            auto elapsed = high_resolution_clock::now() - start;
-            auto to_sleep = milliseconds(100) - elapsed;
-            std::this_thread::sleep_for(to_sleep);
+    void Recorder::StopAll() {
+        SPDLOG_TRACE("Recorder::StopAll()");
+        for (const auto &recorder: this->recorders_ | std::views::values) {
+            const auto &rec = recorder->recorder;
+            rec->Stop();
         }
     }
 
-    void Recorder::StartRecordingOnProcess(const ProcessInfo &pi) {
+    void Recorder::StartListeningProcess(const ProcessInfo &pi) {
         SPDLOG_TRACE("Recorder::StartRecordingOnProcess()");
         auto audio_format = audio::AudioFormat{
                 .channels = 1,
@@ -106,7 +94,7 @@ namespace recorder {
                                                                    audio_format,
                                                                    pi.process_id(),
                                                                    audio_source_factory);
-        SPDLOG_INFO("Starting recording on {}", pi.process_name());
+        SPDLOG_INFO("Starting listening on {}", pi.process_name());
         recorder->Play();
         auto ri = std::make_unique<RecorderItem>(std::move(recorder), pi);
         this->recorders_.emplace(pi.process_name(), std::move(ri));
@@ -123,7 +111,7 @@ namespace recorder {
         }
         for (const auto &p: new_processes) {
             SPDLOG_INFO("\t{} -> StartRecordingOnProcess", p.process_name());
-            StartRecordingOnProcess(p);
+            StartListeningProcess(p);
         }
     }
 
@@ -149,7 +137,7 @@ namespace recorder {
                 case reload:
                 case stop:
                 case kill: {
-                    WaitAllStopped();
+                    StopAll();
                     if (cmd == reload) {
                         return true;
                     }

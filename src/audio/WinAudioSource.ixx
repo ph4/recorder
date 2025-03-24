@@ -145,6 +145,9 @@ namespace recorder::audio::windows {
 
         void Stop() override {
             if (!started_) return;
+            if (device_monitor) {
+                device_monitor.release();
+            }
             if (capture_->GetDeviceState() == DeviceState::Capturing) {
                 if (const auto res = capture_->StopCapture()) {
                     throw std::runtime_error("StopCapture failed: " + hresult_to_string(res));

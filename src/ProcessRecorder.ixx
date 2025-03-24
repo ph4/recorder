@@ -70,6 +70,9 @@ namespace recorder {
         bool IsStarted() {
             return started_;
         }
+        bool IsRecording() {
+            return file_ != std::nullopt;
+        }
         bool IsStopped() {
             return stopped_;
         }
@@ -183,12 +186,6 @@ namespace recorder {
 
                     using enum models::CommandType;
                     switch (command_type) {
-                        case kill:
-                        case stop:
-                        case reload:
-                            this->FinishRecording(audio::SignalInactiveData{});
-                            this->Stop();
-                            break;
                         case force_upload:
                             this->FinishRecording(audio::SignalInactiveData{});
                             this->StartRecording(audio::SignalActiveData{
@@ -196,25 +193,15 @@ namespace recorder {
                                     .activationSource = "force_upload",
                             });
                             break;
+                        case kill:
+                        case stop:
+                        case reload:
                         case normal:
                             break;
                         default: {
                             SPDLOG_ERROR("Unknown command type: {}", rfl::enum_to_string(command_type));
                             throw std::runtime_error("Unknown command type");
                         }
-                    }
-                } else {
-                    // IDLE
-                    auto [command_type] = controller_->SetStatus(name_, InternalStatusBase(InternalStatusType::idle));
-                    using enum models::CommandType;
-                    switch (command_type) {
-                        case kill:
-                        case stop:
-                        case reload:
-                            this->Stop();
-                            break;
-                        default:
-                            break;
                     }
                 }
             }
@@ -256,21 +243,16 @@ namespace recorder {
 
         void Stop() {
             if (started_ && !stopped_) {
+                if (file_) {
+                    this->FinishRecording(audio::SignalInactiveData{});
+                }
                 stopped_ = true;
-                stop_thread_ = std::thread([&] {
-                    mic_->Stop();
-                    process_->Stop();
-                    if (encode_thread_.joinable()) {
-                        PostWrite();
-                        encode_thread_.join();
-                    }
-                });
-                stop_thread_.detach();
-            }
-        }
-        void Join() {
-            if (stop_thread_.joinable()) {
-                stop_thread_.join();
+                mic_->Stop();
+                process_->Stop();
+                if (encode_thread_.joinable()) {
+                    PostWrite();
+                    encode_thread_.join();
+                }
             }
         }
     };
