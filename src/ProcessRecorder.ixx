@@ -117,6 +117,7 @@ namespace recorder {
 
             uploader_->UploadFile(UploadFile{.file_path = file_->file_path, .metadata = metadata});
             file_ = std::nullopt;
+            auto [command_type] = controller_->SetStatus(name_, InternalStatusBase(InternalStatusType::idle));
         }
 
         void MicIn(std::span<S> data) {

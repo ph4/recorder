@@ -35,15 +35,19 @@ namespace recorder::velopack {
     }
     void update_app() {
         auto &manager = update_manager;
+        SPDLOG_INFO("Checking for updates...");
         auto updInfo = manager->CheckForUpdates();
         if (!updInfo.has_value()) {
+            SPDLOG_INFO("No updates found");
             return; // no updates available
         }
 
         // download the update, optionally providing progress callbacks
+        SPDLOG_INFO("Downloading update");
         manager->DownloadUpdates(updInfo.value());
 
         // prepare the Updater in a new process, and wait 60 seconds for this process to exit
+        SPDLOG_INFO("Applying update");
         manager->WaitExitThenApplyUpdate(updInfo.value());
         exit(0); // exit the app to apply the update
     }
