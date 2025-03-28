@@ -1,3 +1,7 @@
+.cache
+release-staging
+release-online-staging
+compile_commands.json
 workdir
 Releases
 ReleasesOnline
