@@ -1,8 +1,8 @@
 //
 // Created by pavel on 13.12.2024.
 //
-
-module;
+#ifndef AUDIO_AUDIO_SOURCE_H
+#define AUDIO_AUDIO_SOURCE_H
 
 #include <functional>
 #include <memory>
@@ -10,16 +10,15 @@ module;
 #include <string>
 #include <variant>
 
-export module AudioSource;
 
 namespace recorder::audio {
-    export struct AudioFormat {
+    struct AudioFormat {
         uint16_t channels;
         uint32_t sampleRate;
     };
 
 
-    export template<typename S>
+    template<typename S>
     class AudioSource {
     public:
         using CallBackT = std::function<void(std::span<S>)>;
@@ -41,7 +40,7 @@ namespace recorder::audio {
         virtual void Stop() = 0;
     };
 
-    export template<typename S>
+    template<typename S>
     class ProcessAudioSource : public AudioSource<S> {
     protected:
 
@@ -49,7 +48,7 @@ namespace recorder::audio {
         virtual uint32_t GetPid() = 0;
     };
 
-    export template<typename T>
+    template<typename T>
     class IAudioSourceFactory {
     public:
         virtual ~IAudioSourceFactory() = default;
@@ -57,7 +56,7 @@ namespace recorder::audio {
         virtual std::variant<std::unique_ptr<T>, std::string> Create(const AudioFormat &format) = 0;
     };
 
-    export template<typename T>
+    template<typename T>
     class IProcessAudioSourceFactory {
     public:
         virtual ~IProcessAudioSourceFactory() = default;
@@ -65,3 +64,4 @@ namespace recorder::audio {
         virtual std::variant<std::unique_ptr<T>, std::string> Create(const AudioFormat &format, uint32_t pid) = 0;
     };
 }
+#endif

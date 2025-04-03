@@ -1,7 +1,9 @@
 //
 // Created by pavel on 04.12.2024.
 //
-module;
+#ifndef OGG_OPUS_ENCODER_H
+#define OGG_OPUS_ENCODER_H
+
 #include <span>
 #include <array>
 #include <memory>
@@ -14,9 +16,8 @@ module;
 
 #include "logging.hpp"
 
-export module OggOpusEncoder;
-import RingBuffer;
-import AudioSource;
+#include "RingBuffer.hpp"
+#include "AudioSource.hpp"
 
 namespace recorder::audio {
     // Assume LittleEndian
@@ -32,7 +33,7 @@ namespace recorder::audio {
     };
     #pragma pack(pop)
 
-    export class OggOpusEncoder {
+    class OggOpusEncoder {
         static constexpr size_t OpusFrameSizeMS = 20;
         std::shared_ptr<std::ostream> writer_;
         AudioFormat format_;
@@ -210,3 +211,4 @@ namespace recorder::audio {
         }
     };
 }
+#endif

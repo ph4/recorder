@@ -1,20 +1,23 @@
 //
 // Created by pavel on 22.03.2025.
 //
-module;
+#ifndef RECORDER_H
+#define RECORDER_H
+
 #include <memory>
 #include <unordered_set>
 
 #include "Controller.hpp"
 
-export module Recorder;
+
+#include "audio/AudioSource.hpp"
+#include "audio/WinAudioSource.hpp"
+
 import Api;
 import Models;
 import FileUploader;
 import ProcessRecorder;
 import ProcessLister;
-import WinAudioSource;
-import AudioSource;
 
 
 struct RecorderItem {
@@ -23,7 +26,7 @@ struct RecorderItem {
 };
 
 namespace recorder {
-    export class Recorder {
+    class Recorder {
         std::shared_ptr<models::LocalConfig> config_{};
         models::RemoteConfig remote_config_{};
         std::shared_ptr<Api> api_{};
@@ -54,3 +57,4 @@ namespace recorder {
         bool ListenProcesses();
     };
 }
+#endif

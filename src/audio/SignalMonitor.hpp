@@ -1,21 +1,21 @@
 //
 // Created by pavel on 28.12.2024.
 //
-module;
+#ifndef SIGNAL_MONITOR_H
+#define SIGNAL_MONITOR_H
+
 #include <functional>
 #include <chrono>
 
-export module SignalMonitor;
-
 namespace recorder::audio {
-    export class SignalMonitorSimple {
+    class SignalMonitorSimple {
     public:
         virtual ~SignalMonitorSimple() = default;
 
         virtual bool HasSignal() = 0;
     };
 
-    export struct SignalActiveData {
+    struct SignalActiveData {
         std::chrono::time_point<std::chrono::system_clock> timestamp;
         std::string activationSource;
         /**
@@ -24,11 +24,11 @@ namespace recorder::audio {
         std::optional<std::string> metadata;
     };
 
-    export struct SignalInactiveData {
+    struct SignalInactiveData {
     };
 
 
-    export struct SignalMonitorCallbacks {
+    struct SignalMonitorCallbacks {
         const std::function<void(SignalActiveData)> onActivated;
         const std::function<void(SignalInactiveData)> onDeactivated;
 
@@ -38,7 +38,7 @@ namespace recorder::audio {
         }
     };
 
-    export struct SignalMonitorSilenceCallbacks : SignalMonitorCallbacks {
+    struct SignalMonitorSilenceCallbacks : SignalMonitorCallbacks {
         size_t max_silence_seconds;
         SignalMonitorSilenceCallbacks(const std::function<void(SignalActiveData)> &onActivated,
                                       const std::function<void(SignalInactiveData)> &onDeactivated,
@@ -47,3 +47,4 @@ namespace recorder::audio {
 
     };
 }
+#endif

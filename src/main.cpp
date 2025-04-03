@@ -15,7 +15,7 @@
 #include "logging.hpp"
 
 import Velopack;
-import Recorder;
+#include "Recorder.hpp"
 
 std::string app_path{"."};
 

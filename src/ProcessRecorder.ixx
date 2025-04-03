@@ -15,14 +15,15 @@ module;
 #include "Controller.hpp"
 #include "logging.hpp"
 
+#include "audio/AudioSource.hpp"
+#include "audio/RingBuffer.hpp"
+#include "audio/SignalMonitor.hpp"
+#include "audio/OggOpusEncoder.hpp"
+
 export module ProcessRecorder;
 
-import AudioSource;
-import RingBuffer;
-import OggOpusEncoder;
 import FileUploader;
 import Models;
-import SignalMonitor;
 import ProcessLister;
 
 using recorder::audio::AudioFormat;

@@ -19,6 +19,7 @@
 #include <audioclientactivationparams.h>
 
 #include "util.hpp"
+#include "AudioSource.hpp"
 
 DEFINE_GUID(inline DEVINTERFACE_AUDIO_CAPTURE_, 0x2eef81be, 0x33fa, 0x4800, 0x96, 0x70, 0x1c, 0xd4, 0x74, 0x97, 0x2c,
             0x3f);
@@ -26,7 +27,6 @@ DEFINE_GUID(inline DEVINTERFACE_AUDIO_RENDER_, 0xe6327cad, 0xdcec, 0x4949, 0xae,
             0xd2);
 
 
-import AudioSource;
 
 using namespace Microsoft::WRL;
 
