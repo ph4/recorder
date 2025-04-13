@@ -1,20 +1,17 @@
 //
 // Created by pavel on 02.12.2024.
 //
-
-module;
-#include <utility>
+#ifndef API_HPP
+#define API_HPP
 
 #include <httplib.h>
 #include <rfl/Result.hpp>
 #include <rfl/json/Parser.hpp>
 
-export module Api;
-
-import Models;
+#include "Models.hpp"
 
 namespace recorder {
-    export class Api {
+    class Api {
     public:
         std::shared_ptr<models::LocalConfig> config_;
         std::string api_stem_;
@@ -48,3 +45,4 @@ namespace recorder {
         rfl::Result<models::Command> SendStatus(const models::Status &status);
     };
 } // namespace recorder
+#endif //API_HPP

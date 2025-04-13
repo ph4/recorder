@@ -1,7 +1,8 @@
 // Created by Adam Kecskes
 // https://github.com/K-Adam/SafeQueue
+#ifndef THREADSAFEQUEUE_HPP
+#define THREADSAFEQUEUE_HPP
 
-module;
 #include <mutex>
 #include <condition_variable>
 
@@ -10,9 +11,7 @@ module;
 
 #include <optional>
 
-export module ThreadSafeQueue;
-
-export template<class T>
+template<class T>
 class ThreadSafeQueue {
 
 	std::queue<T> queue_;
@@ -121,3 +120,4 @@ public:
 	}
 
 };
+#endif //THREADSAFEQUEUE_HPP

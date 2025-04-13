@@ -1,11 +1,11 @@
 //
 // Created by pavel on 25.12.2024.
 //
-module;
+#ifndef FILEUPLOADER_HPP
+#define FILEUPLOADER_HPP
+
 #include <filesystem>
 #include <memory>
-#include <queue>
-#include <string>
 
 #include <rfl.hpp>
 #include <rfl/json/load.hpp>
@@ -15,20 +15,19 @@ module;
 #include "util.hpp"
 
 
-export module FileUploader;
-import ThreadSafeQueue;
-import Models;
-import Api;
+#include "Models.hpp"
+#include "Api.hpp"
+#include "ThreadSafeQueue.hpp"
 
 using recorder::models::RecordMetadata;
 
 namespace recorder {
-    export struct UploadFile {
+    struct UploadFile {
         std::filesystem::path file_path;
         RecordMetadata metadata;
     };
 
-    export class FileUploader {
+    class FileUploader {
     protected:
         ThreadSafeQueue<UploadFile> upload_queue_{};
         std::thread upload_thread_{};
@@ -126,3 +125,4 @@ namespace recorder {
         }
     };
 } // namespace recorder
+#endif //FILEUPLOADER_HPP

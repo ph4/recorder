@@ -1,7 +1,9 @@
 //
 // Created by pavel on 16.12.2024.
 //
-module;
+#ifndef WIN_AUDIO_SOURCE_H
+#define WIN_AUDIO_SOURCE_H
+
 #include <algorithm>
 #include <chrono>
 #include <memory>
@@ -11,15 +13,14 @@ module;
 
 #include "WinCapture.hpp"
 
-export module WinAudioSource;
-import AudioSource;
-import SignalMonitor;
-import AudioDeviceMonitor;
+#include "AudioSource.hpp"
+#include "SignalMonitor.hpp"
+#include "AudioDeviceMonitor.hpp"
 
 namespace recorder::audio::windows {
     using namespace recorder::audio;
 
-    export template<typename S>
+    template<typename S>
     class WinAudioSource : public ProcessAudioSource<S>, SignalMonitorSimple {
         using State = typename ProcessAudioSource<S>::State;
         using DeviceState = typename WinCapture<S>::DeviceState;
@@ -175,3 +176,4 @@ namespace recorder::audio::windows {
     template class WinAudioSource<int16_t>;
 
 }
+#endif

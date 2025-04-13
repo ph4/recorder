@@ -1,21 +1,18 @@
 //
 // Created by pavel on 31.12.2024.
 //
-module;
+#ifndef PROCESSLISTER_HPP
+#define PROCESSLISTER_HPP
 
-#include <format>
-#include <stdexcept>
 #include <string>
 #include <vector>
 #include <windows.h>
 
 
-export module ProcessLister;
-
 namespace recorder {
     std::vector<DWORD> getAudioPlayingPids();
 
-    export class ProcessInfo {
+    class ProcessInfo {
         std::string process_name_;
         DWORD process_id_;
 
@@ -31,7 +28,7 @@ namespace recorder {
         [[nodiscard]] bool isPlayingAudio() const;
     };
 
-    export class ProcessLister {
+    class ProcessLister {
     public:
         static std::vector<ProcessInfo> getAudioPlayingProcesses();
 
@@ -41,3 +38,4 @@ namespace recorder {
         static std::vector<DWORD> getRootProcesses(const std::vector<DWORD> &processIDs);
     };
 } // namespace recorder
+#endif //PROCESSLISTER_HPP

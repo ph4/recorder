@@ -1,7 +1,8 @@
 //
 // Created by pavel on 22.03.2025.
 //
-module;
+#include "Recorder.hpp"
+
 // Have to include it here so static functions compile
 #include <yyjson.h>
 #include <strsafe.h>
@@ -14,7 +15,10 @@ module;
 #include "Controller.hpp"
 #include "logging.hpp"
 
-module Recorder;
+#include "audio/WinAudioSource.hpp"
+
+#include "Models.hpp"
+
 
 using namespace std::chrono;
 namespace rv = std::ranges::views;

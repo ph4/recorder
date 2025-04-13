@@ -1,19 +1,19 @@
 //
 // Created by pavel on 02.12.2024.
 //
-module;
+#ifndef MODELS_HPP
+#define MODELS_HPP
+
 #include <optional>
 #include <rfl.hpp>
 #include <string>
 
-export module Models;
-
 namespace recorder::models {
-    export struct Authorize {
+    struct Authorize {
         std::string session_token;
     };
 
-    export struct LocalConfig {
+    struct LocalConfig {
         const std::string api_root;
         const std::string name;
         const std::string token;
@@ -22,7 +22,7 @@ namespace recorder::models {
         // std::optional<bool> offline_files = std::nullopt;
     };
 
-    export struct App {
+    struct App {
         using Int = long;
         std::string exe_name;
         std::optional<std::string> module = std::nullopt;
@@ -31,7 +31,7 @@ namespace recorder::models {
         std::optional<Int> max_recording_s = std::nullopt;
     };
 
-    export struct RemoteConfig {
+    struct RemoteConfig {
         using Int = long;
         std::string name;
         // std::optional<bool> keep_files = std::nullopt;
@@ -44,21 +44,21 @@ namespace recorder::models {
         std::vector<App> app_configs;
     };
 
-    export struct RecordMetadata {
+    struct RecordMetadata {
         // rfl::Timestamp<"%Y-%m-%dT%H:%M:%S.%f"> start_time;
         uint64_t started; // Unix timestamp
         int64_t length_seconds;
     };
 
-    export struct Record {};
+    struct Record {};
 
-    export struct Register {
+    struct Register {
         std::string name;
         std::string version;
         std::string channel;
     };
 
-    export enum class StatusType {
+    enum class StatusType {
         starting,
         idle,
         exiting,
@@ -66,25 +66,27 @@ namespace recorder::models {
         exited,
     };
 
-    export enum class StatusTypeWithFile {
+    enum class StatusTypeWithFile {
         recording,
         uploading,
     };
 
-    export struct StatusBase {
+    struct StatusBase {
         StatusType type;
     };
 
-    export struct StatusWithFile {
+    struct StatusWithFile {
         StatusTypeWithFile type;
         RecordMetadata data;
     };
 
-    export using Status = rfl::Variant<StatusBase, StatusWithFile>;
+    using Status = rfl::Variant<StatusBase, StatusWithFile>;
 
-    export enum class CommandType { normal, force_upload, reload, stop, kill };
+    enum class CommandType { normal, force_upload, reload, stop, kill };
 
-    export struct Command {
+    struct Command {
         CommandType type;
     };
 } // namespace recorder::models
+
+#endif //MODELS_HPP

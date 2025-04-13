@@ -79,6 +79,10 @@ public:
             nullptr,
             &this->svc);
 
+        if(this->svc.get() == (IWbemServices*)-1) {
+            throw std::runtime_error("Failed to connect to WMI (ptr = -1)");
+        }
+
         if (FAILED(hr)) {
             SPDLOG_ERROR("Could not connect. {}", hresult_to_string((hr)));
             return hr;
@@ -175,9 +179,9 @@ public:
         return 0;
     }
 
-    ~WmiConnection() {
-        svc->Release();
-    }
+    // ~WmiConnection() {
+    //     svc->Release();
+    // }
 };
 
 

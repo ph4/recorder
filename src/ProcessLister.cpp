@@ -1,7 +1,6 @@
 //
 // Created by pavel on 31.12.2024.
 //
-module;
 #include <algorithm>
 #include <format>
 #include <map>
@@ -22,7 +21,7 @@ module;
 
 #include "util.hpp"
 
-module ProcessLister;
+#include "ProcessLister.hpp"
 
 
 namespace recorder {

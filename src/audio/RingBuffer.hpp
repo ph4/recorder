@@ -1,7 +1,8 @@
 //
 // Created by pavel on 22.12.2024.
 //
-module;
+#ifndef RING_BUFFER_H
+#define RING_BUFFER_H
 
 #include <array>
 #include <cassert>
@@ -10,9 +11,8 @@ module;
 #include <stdexcept>
 #include <vector>
 
-export module RingBuffer;
 
-export template<typename ArrayT, typename T, size_t NChannels, size_t NChunks>
+template<typename ArrayT, typename T, size_t NChannels, size_t NChunks>
 class InterleaveRingBufferBase {
 protected:
     std::mutex mutex;
@@ -144,7 +144,7 @@ public:
     }
 };
 
-export template<typename T, size_t NChannels, size_t ChunkFrames, size_t NChunks>
+template<typename T, size_t NChannels, size_t ChunkFrames, size_t NChunks>
 class InterleaveRingBuffer : public InterleaveRingBufferBase<
             std::array<T, ChunkFrames * NChannels * NChunks>, T, NChannels, NChunks
         > {
@@ -157,7 +157,7 @@ public:
 };
 
 
-export template<typename T, size_t NChannels, size_t NChunks>
+template<typename T, size_t NChannels, size_t NChunks>
 class InterleaveRingBufferHeap : public InterleaveRingBufferBase<std::vector<T>, T, NChannels, NChunks> {
 public:
     explicit InterleaveRingBufferHeap(const size_t chunk_frames): InterleaveRingBufferBase<std::vector<T>, T, NChannels, NChunks>(
@@ -165,5 +165,6 @@ public:
     }
 };
 
-export template<typename T, size_t ChunkFrames, size_t NChunks>
+template<typename T, size_t ChunkFrames, size_t NChunks>
 using RingBuffer = InterleaveRingBuffer<T, 1, ChunkFrames, NChunks>;
+#endif

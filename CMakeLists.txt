@@ -112,9 +112,4 @@ project(recorder-tests)
 add_executable(recorder-tests
         tests.cpp
 )
-target_sources(recorder-tests
-  PUBLIC
-    FILE_SET all_my_modules TYPE CXX_MODULES FILES
-        src/audio/RingBuffer.ixx
-)
 target_link_libraries(recorder-tests GTest::gtest)

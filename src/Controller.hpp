@@ -12,9 +12,8 @@
 
 #include "rfl/TaggedUnion.hpp"
 
-// module Controller;
-import Api;
-import Models;
+#include "Api.hpp"
+#include "Models.hpp"
 
 namespace recorder {
     enum class InternalStatusType {
@@ -66,4 +65,4 @@ namespace recorder {
     };
 } // namespace recorder
 
-#endif CONTROLLER_HPP
+#endif //CONTROLLER_HPP

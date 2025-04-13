@@ -1,11 +1,12 @@
 //
 // Created by pavel on 15.03.2025.
 //
-module;
-#include <Velopack.hpp>
-#include "logging.hpp"
+#ifndef VELOPACK_MY_HPP
+#define VELOPACK_MY_HPP
 
-module Velopack;
+#include <Velopack.hpp>
+#include "VelopackMy.hpp"
+#include "logging.hpp"
 
 namespace recorder::velopack {
 
@@ -85,3 +86,4 @@ namespace recorder::velopack {
     }
 
 } // namespace velo
+#endif //VELOPACK_MY_HPP

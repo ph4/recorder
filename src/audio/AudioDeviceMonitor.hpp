@@ -1,7 +1,8 @@
 //
 // Created by pavel on 24.03.2025.
 //
-module;
+#ifndef AUDIODEVICEMONITOR_H
+#define AUDIODEVICEMONITOR_H
 #include <span>
 #include <iostream>
 #include <windows.h>
@@ -11,14 +12,13 @@ module;
 #include <thread>
 #include "logging.hpp"
 
-export module AudioDeviceMonitor;
-import AudioSource;
+#include "AudioSource.hpp"
 
 using namespace std::chrono;
 
 namespace recorder::audio {
 
-export template <typename S>
+template <typename S>
 class AudioDeviceMonitor : public IMMNotificationClient {
 private:
     std::atomic<bool> has_active_device;
@@ -137,3 +137,4 @@ public:
 };
 
 }
+#endif

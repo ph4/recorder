@@ -1,13 +1,13 @@
 //
 // Created by pavel on 23.12.2024.
 //
-module;
+#ifndef PROCESSRECORDER_HPP
+#define PROCESSRECORDER_HPP
+
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <memory>
-#include <semaphore>
-#include <span>
 #include <utility>
 
 #include <rfl/enums.hpp>
@@ -15,15 +15,13 @@ module;
 #include "Controller.hpp"
 #include "logging.hpp"
 
-export module ProcessRecorder;
+#include "audio/AudioSource.hpp"
+#include "audio/RingBuffer.hpp"
+#include "audio/SignalMonitor.hpp"
+#include "audio/OggOpusEncoder.hpp"
 
-import AudioSource;
-import RingBuffer;
-import OggOpusEncoder;
-import FileUploader;
-import Models;
-import SignalMonitor;
-import ProcessLister;
+#include "FileUploader.hpp"
+#include "Models.hpp"
 
 using recorder::audio::AudioFormat;
 using recorder::audio::OggOpusEncoder;
@@ -36,14 +34,14 @@ using std::filesystem::path;
 using namespace std::chrono;
 
 namespace recorder {
-    export struct File {
+    struct File {
         std::shared_ptr<std::ofstream> file_stream;
         OggOpusEncoder opus_encoder_;
         path file_path;
         time_point<system_clock> start_time;
     };
 
-    export template<typename S>
+    template<typename S>
     class ProcessRecorder {
         std::shared_ptr<Controller> controller_;
         std::string name_;
@@ -258,3 +256,4 @@ namespace recorder {
         }
     };
 } // namespace recorder
+#endif //PROCESSRECORDER_HPP
