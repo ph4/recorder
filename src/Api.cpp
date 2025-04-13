@@ -1,7 +1,8 @@
 //
 // Created by pavel on 26.12.2024.
 //
-module;
+#include "Api.hpp"
+
 #include <httplib.h>
 #include <rfl/json/write.hpp>
 #include <spdlog/spdlog.h>
@@ -9,8 +10,7 @@ module;
 #include "rfl/json/read.hpp"
 #include "util.hpp"
 
-module Api;
-import Velopack;
+#include "VelopackMy.hpp"
 
 namespace recorder {
     bool Api::EnsureAuthorized() {

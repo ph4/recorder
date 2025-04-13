@@ -14,7 +14,7 @@
 #include "hwid.hpp"
 #include "logging.hpp"
 
-import Velopack;
+#include "VelopackMy.hpp"
 #include "Recorder.hpp"
 
 std::string app_path{"."};

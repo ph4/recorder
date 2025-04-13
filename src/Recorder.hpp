@@ -13,11 +13,11 @@
 #include "audio/AudioSource.hpp"
 #include "audio/WinAudioSource.hpp"
 
-import Api;
-import Models;
-import FileUploader;
-import ProcessRecorder;
-import ProcessLister;
+#include "Api.hpp"
+#include "Models.hpp"
+#include "FileUploader.hpp"
+#include "ProcessRecorder.hpp"
+#include "ProcessLister.hpp"
 
 
 struct RecorderItem {

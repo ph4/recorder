@@ -6,7 +6,7 @@
 
 #include "src/ChunkedRingBuffer.hpp"
 
-import RingBuffer;
+#include "src/audio/RingBuffer.hpp"
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);

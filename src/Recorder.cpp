@@ -17,7 +17,7 @@
 
 #include "audio/WinAudioSource.hpp"
 
-import Models;
+#include "Models.hpp"
 
 
 using namespace std::chrono;
