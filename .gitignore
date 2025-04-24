@@ -1,3 +1,4 @@
+.private.lua
 .cache
 release-staging
 release-online-staging
