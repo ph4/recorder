@@ -4,9 +4,10 @@
 #ifndef VELOPACK_MY_HPP
 #define VELOPACK_MY_HPP
 
+#include <spdlog/spdlog.h>
 #include <Velopack.hpp>
+
 #include "VelopackMy.hpp"
-#include "logging.hpp"
 
 namespace recorder::velopack {
 

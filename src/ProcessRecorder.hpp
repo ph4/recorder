@@ -11,9 +11,9 @@
 #include <utility>
 
 #include <rfl/enums.hpp>
+#include <spdlog/spdlog.h>
 
 #include "Controller.hpp"
-#include "logging.hpp"
 
 #include "audio/AudioSource.hpp"
 #include "audio/RingBuffer.hpp"

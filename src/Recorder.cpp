@@ -9,15 +9,13 @@
 
 #include <ranges>
 
+#include <spdlog/spdlog.h>
 #include <rfl/toml/load.hpp>
 #include <rfl/toml/save.hpp>
 
-#include "Controller.hpp"
-#include "logging.hpp"
-
-#include "audio/WinAudioSource.hpp"
-
 #include "Models.hpp"
+#include "Controller.hpp"
+#include "audio/WinAudioSource.hpp"
 
 
 using namespace std::chrono;

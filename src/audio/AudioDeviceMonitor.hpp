@@ -3,14 +3,15 @@
 //
 #ifndef AUDIODEVICEMONITOR_H
 #define AUDIODEVICEMONITOR_H
+
 #include <span>
-#include <iostream>
+#include <atomic>
+#include <thread>
+
 #include <windows.h>
 #include <mmdeviceapi.h>
 #include <functiondiscoverykeys.h>
-#include <atomic>
-#include <thread>
-#include "logging.hpp"
+#include <spdlog/spdlog.h>
 
 #include "AudioSource.hpp"
 

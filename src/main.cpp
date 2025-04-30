@@ -1,18 +1,17 @@
-#include <fstream>
 #include <iostream>
-#include <semaphore>
-#include <span>
 #include <string>
 #include <thread>
+#include <filesystem>
 
 // Force include before Windows so it does not complain
 #include <httplib.h>
 #include <windows.h>
 
-#include <filesystem>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks-inl.h>
 
 #include "hwid.hpp"
-#include "logging.hpp"
 
 #include "VelopackMy.hpp"
 #include "Recorder.hpp"
@@ -36,6 +35,18 @@ void SetWorkdirToParent() {
         throw std::runtime_error("Failed to get executable path");
     }
 }
+
+
+void setup_logger() {
+    auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/main.txt", 1024 * 1024 * 5, 5, true);
+    spdlog::logger logger("main", {stdout_sink, file_sink});
+    logger.flush_on(spdlog::level::trace);
+    logger.set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%s] [%^%l%$] %v");
+    logger.set_level(spdlog::level::trace);
+    set_default_logger(std::make_shared<spdlog::logger>(logger));
+}
+
 
 int main(const int argc, char const *argv[]) {
 #ifndef DEBUG

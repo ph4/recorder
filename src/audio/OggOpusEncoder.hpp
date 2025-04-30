@@ -8,13 +8,12 @@
 #include <array>
 #include <memory>
 #include <ostream>
-
-#include <opus.h>
 #include <random>
-#include <ogg/ogg.h>
-#include <variant>
 
-#include "logging.hpp"
+#include <spdlog/spdlog.h>
+#include <opus.h>
+#include <ogg/ogg.h>
+
 
 #include "RingBuffer.hpp"
 #include "AudioSource.hpp"

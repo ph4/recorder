@@ -85,6 +85,8 @@ if(VELOPACK_UPDATE_ROOT)
     add_compile_definitions(VELOPACK_UPDATE_ROOT="${VELOPACK_UPDATE_ROOT}")
 endif()
 
+add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/**/*.cpp")
 file(GLOB_RECURSE MODULES "src/*.ixx" "src/**/*.ixx")
 

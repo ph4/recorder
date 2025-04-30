@@ -7,11 +7,12 @@
 #include <filesystem>
 #include <memory>
 
+#include <spdlog/spdlog.h>
 #include <rfl.hpp>
 #include <rfl/json/load.hpp>
 #include <rfl/json/save.hpp>
 
-#include "logging.hpp"
+
 #include "util.hpp"
 
 

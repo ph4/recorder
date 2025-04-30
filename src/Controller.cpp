@@ -5,12 +5,10 @@
 
 #include <mutex>
 #include <ranges>
-#include <variant>
 
 #include <rfl/always_false.hpp>
 #include <rfl/enums.hpp>
-
-#include "logging.hpp"
+#include <spdlog/spdlog.h>
 
 using namespace std::chrono;
 using namespace recorder::models;
