@@ -3,43 +3,59 @@ local execute_command = require('util').execute_command
 
 local private = dofile(vim.fn.expand('%:p:h') .. '/.private.lua')
 
-require('dap').configurations.cpp = {
-  {
-    name = "Recorder debug",
-    type = "codelldb",
-    request = "launch",
-    program = '${workspaceFolder}/cmake-build-debug-visual-studio/recorder.exe',
-    cwd = '${workspaceFolder}/workdir',
-    stopOnEntry = false,
-    args = {},
-  }
-}
 
 local cmake_debug = function()
-  execute_command('cmake-debug', [[cmake -DCMAKE_BUILD_TYPE=Debug -DDEBUG=ON -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build-debug-visual-studio -DCMAKE_EXPORT_COMPILE_COMMANDS=ON]])
+  return execute_command('cmake-debug', [[cmake -DCMAKE_BUILD_TYPE=Debug -DDEBUG=ON -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build-debug-visual-studio -DCMAKE_EXPORT_COMPILE_COMMANDS=ON]])
 end
 
 local cmake_release = function()
   vim.env.VELOPACK_UPDATE_ROOT = private.VELOPACK_ROOT
-  execute_command('cmake-release', [[cmake -DCMAKE_BUILD_TYPE=Release -DDEBUG=OFF -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build-release-visual-studio -DCMAKE_EXPORT_COMPILE_COMMANDS=ON]])
+  return execute_command('cmake-release', [[cmake -DCMAKE_BUILD_TYPE=Release -DDEBUG=OFF -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build-release-visual-studio -DCMAKE_EXPORT_COMPILE_COMMANDS=ON]])
 end
 
 local cmake_release_online = function()
   vim.env.VELOPACK_UPDATE_ROOT = private.VELOPACK_ROOT_ONLINE
-  execute_command('cmake-release-online', [[cmake -DCMAKE_BUILD_TYPE=Release -DDEBUG=OFF -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build-release-online-visual-studio -DCMAKE_EXPORT_COMPILE_COMMANDS=ON]])
+  return execute_command('cmake-release-online', [[cmake -DCMAKE_BUILD_TYPE=Release -DDEBUG=OFF -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build-release-online-visual-studio -DCMAKE_EXPORT_COMPILE_COMMANDS=ON]])
 end
 
 local build_debug = function()
-  execute_command('build-debug', [[cmake --build cmake-build-debug-visual-studio --config Debug --target recorder]])
+  return execute_command('build-debug', [[cmake --build cmake-build-debug-visual-studio --config Debug --target recorder]])
 end
 
 local build_release = function()
-  execute_command('build-release', [[cmake --build cmake-build-release-visual-studio --config Release --target recorder ]])
+  return execute_command('build-release', [[cmake --build cmake-build-release-visual-studio --config Release --target recorder ]])
 end
 
 local build_release_online = function()
-  execute_command('build-release-online', [[cmake --build cmake-build-release-online-visual-studio --config Release --target recorder]])
+  return execute_command('build-release-online', [[cmake --build cmake-build-release-online-visual-studio --config Release --target recorder]])
 end
+
+
+vim.g.build_function = function()
+  local jobid = build_debug()
+  assert(jobid ~= nil)
+  local ret = vim.fn.jobwait({ jobid }, -1)[1]
+  return ret == 0
+end
+
+
+vim.g.debug_config = {
+  name = "Recorder debug",
+  type = "codelldb",
+  request = "launch",
+  program = function()
+    if vim.g.build_function() then
+      return '${workspaceFolder}/cmake-build-debug-visual-studio/recorder.exe'
+    else
+      return nil
+    end
+  end,
+  cwd = '${workspaceFolder}/workdir',
+  stopOnEntry = false,
+  args = {},
+}
+
+require('dap').configurations.cpp = { vim.g.debug_config }
 
 vim.api.nvim_create_user_command('BuildDebug', build_debug, {})
 vim.api.nvim_create_user_command('BuildRelease', build_release, {})
@@ -81,7 +97,7 @@ if vim.fn.has('win32') == 1 and vim.env.VCINSTALLDIR == nil then
      end,
      on_stderr = function(_, data)
        if (#data > 0) then
-         local data = table.concat(data, "\n")
+         data = table.concat(data, "\n")
          vim.notify(data, vim.log.levels.ERROR)
        end
      end,

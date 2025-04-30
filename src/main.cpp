@@ -11,9 +11,13 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks-inl.h>
 
-#include "hwid.hpp"
-
+#ifdef DEBUG
+#include "debug.hpp"
+#else
 #include "VelopackMy.hpp"
+#endif
+
+#include "hwid.hpp"
 #include "Recorder.hpp"
 
 std::string app_path{"."};
@@ -51,7 +55,6 @@ void setup_logger() {
 int main(const int argc, char const *argv[]) {
 #ifndef DEBUG
     SetWorkdirToParent();
-#endif
     ShowWindow(GetConsoleWindow(), SW_HIDE); // Hide terminal
     setup_logger();
     try {
@@ -62,6 +65,10 @@ int main(const int argc, char const *argv[]) {
     } catch (const std::exception &e) {
         SPDLOG_ERROR("Exception occurred while starting velopack: {}", e.what());
     }
+#else
+    setup_logger();
+    recorder::debug::print_all_endpoints();
+#endif
 
     auto uuid = get_uuid();
     SPDLOG_INFO("Machine UUID = {}", uuid);

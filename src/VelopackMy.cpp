@@ -9,6 +9,10 @@
 
 #include "VelopackMy.hpp"
 
+#ifdef DEBUG
+#define VELOPACK_UPDATE_ROOT ""
+#endif
+
 namespace recorder::velopack {
 
     std::string update_channel = "win";
@@ -61,11 +65,6 @@ namespace recorder::velopack {
                 },
                 nullptr);
 
-        bool installed;
-    #ifdef DEBUG
-        installed = false;
-    #else
-        installed = true;
         try {
             auto options = Velopack::UpdateOptions {
                 .AllowVersionDowngrade = true,
@@ -77,12 +76,9 @@ namespace recorder::velopack {
             SPDLOG_ERROR(e.what());
             return EXIT_FAILURE;
         }
-    #endif
         Velopack::VelopackApp::Build()
                 .Run();
-        if (installed) {
-            update_app();
-        }
+        update_app();
         return EXIT_SUCCESS;
     }
 
