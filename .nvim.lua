@@ -1,3 +1,4 @@
+
 local execute_command = require('util').execute_command
 
 
@@ -18,8 +19,8 @@ local cmake_release_online = function()
   return execute_command('cmake-release-online', [[cmake -DCMAKE_BUILD_TYPE=Release -DDEBUG=OFF -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build-release-online-visual-studio -DCMAKE_EXPORT_COMPILE_COMMANDS=ON]])
 end
 
-local build_debug = function()
-  return execute_command('build-debug', [[cmake --build cmake-build-debug-visual-studio --config Debug --target recorder]])
+local build_debug = function(on_exit)
+  return execute_command('build-debug', [[cmake --build cmake-build-debug-visual-studio --config Debug --target recorder]], on_exit)
 end
 
 local build_release = function()
@@ -31,11 +32,8 @@ local build_release_online = function()
 end
 
 
-vim.g.build_function = function()
-  local jobid = build_debug()
-  assert(jobid ~= nil)
-  local ret = vim.fn.jobwait({ jobid }, -1)[1]
-  return ret == 0
+vim.g.build_function = function(on_finish)
+  build_debug(on_finish)
 end
 
 
@@ -43,19 +41,15 @@ vim.g.debug_config = {
   name = "Recorder debug",
   type = "codelldb",
   request = "launch",
-  program = function()
-    if vim.g.build_function() then
-      return '${workspaceFolder}/cmake-build-debug-visual-studio/recorder.exe'
-    else
-      return nil
-    end
-  end,
+  program = '${workspaceFolder}/cmake-build-debug-visual-studio/recorder.exe',
   cwd = '${workspaceFolder}/workdir',
   stopOnEntry = false,
   args = {},
 }
 
 require('dap').configurations.cpp = { vim.g.debug_config }
+
+vim.api.nvim_create_user_command('Build', build_debug, {})
 
 vim.api.nvim_create_user_command('BuildDebug', build_debug, {})
 vim.api.nvim_create_user_command('BuildRelease', build_release, {})

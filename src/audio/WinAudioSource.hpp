@@ -11,7 +11,7 @@
 #include <mutex>
 #include <thread>
 
-#include "WinCapture.hpp"
+#include "win-capture.hpp"
 
 #include "AudioDeviceMonitor.hpp"
 #include "AudioSource.hpp"
@@ -36,15 +36,7 @@ namespace recorder::audio::windows {
         size_t samples_without_signal_ = std::numeric_limits<size_t>::max();
         bool active_ = false;
 
-        wil::com_ptr<WinCapture<S>> capture_;
-        std::thread thread_{};
-        void process() {
-            {
-                std::unique_lock lock(started_mutex_);
-                started_condition_.wait(lock, [this] { return started_; });
-            }
-            capture_->CaptureLoop();
-        }
+        std::unique_ptr<WinCapture<S>> capture_;
 
         bool checkNewAudio(std::span<S> audio) {
             // Windows sometimes has samples with value of +-1 on silent streams
@@ -87,7 +79,7 @@ namespace recorder::audio::windows {
               callback_(callback),
               signal_callbacks_(signal_callbacks),
               capture_(
-                    Microsoft::WRL::Make<WinCapture<S>>(
+                    std::make_unique<WinCapture<S>>(
                           format,
                           200000,
                           [this](auto audio) {
@@ -104,10 +96,6 @@ namespace recorder::audio::windows {
             if (loopback) {
                 device_monitor = std::make_unique<AudioDeviceMonitor<S>>(format, callback);
             }
-
-            THROW_IF_FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
-            THROW_IF_FAILED(capture_->Initialize());
-            THROW_IF_FAILED(capture_->ActivateAudioInterface());
         }
 
         State GetState() override {
@@ -129,38 +117,18 @@ namespace recorder::audio::windows {
         };
 
         void SetCallback(const CallBackT cb) override {
-            callback_ = cb;
-            capture_->SetCallback([this](auto audio) {
-                this->checkNewAudio(audio);
-                callback_(audio);
-            });
+            throw std::runtime_error("Not implemented");
         };
 
-        void Play() override {
-            if (capture_->GetDeviceState() == DeviceState::Initialized
-                || capture_->GetDeviceState() == DeviceState::Stopped) {
-                thread_ = std::thread(&WinAudioSource::process, this);
-                if (const auto res = capture_->StartCapture()) {
-                    throw std::runtime_error("StartCapture failed: " + hresult_to_string(res));
-                }
-                std::lock_guard lock(started_mutex_);
-                started_ = true;
-                started_condition_.notify_all();
-            }
-        };
+        void Play() override {};
 
         void Stop() override {
             if (!started_) return;
             if (device_monitor) {
                 device_monitor.release();
             }
-            if (capture_->GetDeviceState() == DeviceState::Capturing) {
-                if (const auto res = capture_->StopCapture()) {
-                    throw std::runtime_error("StopCapture failed: " + hresult_to_string(res));
-                }
-            }
-            if (thread_.joinable()) {
-                thread_.join();
+            if (capture_) {
+                capture_.release();
             }
         }
 
@@ -168,11 +136,7 @@ namespace recorder::audio::windows {
 
         bool HasSignal() override { return active_; };
 
-        ~WinAudioSource() override {
-            if (thread_.joinable()) {
-                thread_.join();
-            }
-        }
+        ~WinAudioSource() override {}
     };
 
     template class WinAudioSource<int16_t>;
