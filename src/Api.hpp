@@ -12,7 +12,7 @@
 
 namespace recorder {
     class Api {
-    public:
+      public:
         std::shared_ptr<models::LocalConfig> config_;
         std::string api_stem_;
         std::string api_root_;
@@ -24,12 +24,13 @@ namespace recorder {
 
         [[nodiscard]] httplib::Client &client() const;
 
-        static rfl::Result<std::monostate> CheckConnectionError(const std::string &endpoint,
-                                                                const httplib::Result &res);
+        static rfl::Result<std::monostate> CheckConnectionError(
+              const std::string &endpoint, const httplib::Result &res
+        );
 
         bool CheckUnauthorized(const httplib::Result &res);
 
-    public:
+      public:
         bool EnsureAuthorized();
         bool IsAuthorized() const;
         rfl::Result<std::monostate> Authorize();
@@ -40,9 +41,11 @@ namespace recorder {
 
         rfl::Result<models::RemoteConfig> Register() const;
 
-        rfl::Result<std::monostate> Upload(const std::filesystem::path &path, const models::RecordMetadata &metadata);
+        rfl::Result<std::monostate> Upload(
+              const std::filesystem::path &path, const models::RecordMetadata &metadata
+        );
 
         rfl::Result<models::Command> SendStatus(const models::Status &status);
     };
 } // namespace recorder
-#endif //API_HPP
+#endif // API_HPP

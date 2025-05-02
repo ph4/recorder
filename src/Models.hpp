@@ -89,4 +89,4 @@ namespace recorder::models {
     };
 } // namespace recorder::models
 
-#endif //MODELS_HPP
+#endif // MODELS_HPP

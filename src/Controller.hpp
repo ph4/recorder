@@ -39,8 +39,8 @@ namespace recorder {
         std::unordered_map<std::string, models::Command> commands_{};
 
         std::optional<models::Command> global_command_ = std::nullopt;
-        std::atomic<models::StatusBase> global_status_ = models::StatusBase(models::StatusType::idle);
-
+        std::atomic<models::StatusBase> global_status_ =
+              models::StatusBase(models::StatusType::idle);
 
         std::thread thread_{};
         bool finishing_ = false;
@@ -48,15 +48,14 @@ namespace recorder {
         std::shared_ptr<Api> api_;
         size_t status_interval_ms_;
 
-    protected:
+      protected:
         models::Status GetAggregateStatus();
         void HandleIncomingCommand(const models::Command &command);
 
-    public:
+      public:
         Controller(const std::shared_ptr<Api> &api, size_t status_interval_ms);
         ~Controller();
         void StatusLoop();
-
 
         void Reset();
         models::Command SetStatus(const std::string &name, const InternalStatus &status);
@@ -65,4 +64,4 @@ namespace recorder {
     };
 } // namespace recorder
 
-#endif //CONTROLLER_HPP
+#endif // CONTROLLER_HPP

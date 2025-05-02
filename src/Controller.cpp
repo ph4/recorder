@@ -6,18 +6,17 @@
 #include <mutex>
 #include <ranges>
 
+#include <spdlog/spdlog.h>
 #include <rfl/always_false.hpp>
 #include <rfl/enums.hpp>
-#include <spdlog/spdlog.h>
 
 using namespace std::chrono;
 using namespace recorder::models;
 
-
 namespace recorder {
     Status Controller::GetAggregateStatus() {
         std::optional<StatusWithFile> best_recording;
-        for (auto &[key, st]: statuses_) {
+        for (auto &[key, st] : statuses_) {
             auto visitor = [&]<typename T>(const T &s) {
                 using enum InternalStatusType;
                 using Type = std::decay_t<T>;
@@ -31,15 +30,18 @@ namespace recorder {
                 } else if constexpr (std::is_same_v<Type, InternalStatusWithMetadata>) {
                     switch (s.type) {
                         case recording: {
-                            auto is_better = best_recording.has_value() &&
-                                             s.metadata.length_seconds > best_recording.value().data.length_seconds;
+                            auto is_better = best_recording.has_value()
+                                             && s.metadata.length_seconds
+                                                      > best_recording.value().data.length_seconds;
                             if (!best_recording.has_value() || is_better) {
                                 best_recording.emplace(StatusTypeWithFile::recording, s.metadata);
                             }
                             break;
                         }
                         default:
-                            throw std::runtime_error("Unknown status type on InternalStatusWithMetadata");
+                            throw std::runtime_error(
+                                  "Unknown status type on InternalStatusWithMetadata"
+                            );
                     }
                 } else {
                     static_assert(rfl::always_false_v<Type>, "Not all cases were covered");
@@ -61,7 +63,7 @@ namespace recorder {
             case normal:
                 break;
             case force_upload:
-                for (auto &k: std::views::keys(commands_)) {
+                for (auto &k : std::views::keys(commands_)) {
                     commands_.emplace(k, force_upload);
                 }
                 break;
@@ -110,7 +112,9 @@ namespace recorder {
      * @param status_interval_ms Time between sending status to the server in ms
      */
     Controller::Controller(const std::shared_ptr<Api> &api, size_t status_interval_ms)
-        : thread_(std::thread(&Controller::StatusLoop, this)), api_(api), status_interval_ms_(status_interval_ms) {}
+        : thread_(std::thread(&Controller::StatusLoop, this)),
+          api_(api),
+          status_interval_ms_(status_interval_ms) {}
 
     Controller::~Controller() {
         finishing_ = true;
@@ -157,7 +161,9 @@ namespace recorder {
                     case StatusType::exited:
                     case StatusType::exiting:
                     case StatusType::reloading: {
-                        SPDLOG_DEBUG("Status = {}, finishing", rfl::enum_to_string(global_status.type));
+                        SPDLOG_DEBUG(
+                              "Status = {}, finishing", rfl::enum_to_string(global_status.type)
+                        );
                         finishing_ = true;
                         continue;
                         break;

@@ -12,8 +12,8 @@
 #include <audiopolicy.h>
 #include <endpointvolume.h>
 #include <mmdeviceapi.h>
-#include <set>
 #include <tlhelp32.h>
+#include <set>
 #include <unordered_set>
 
 #include <wil/com.h>
@@ -23,13 +23,14 @@
 
 #include "ProcessLister.hpp"
 
-
 namespace recorder {
     std::vector<DWORD> getAudioPlayingPids() {
         CoInitializeGuard coInitGuard;
 
         wil::com_ptr_nothrow<IMMDeviceEnumerator> enumerator;
-        HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
+        HRESULT hr = CoCreateInstance(
+              __uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator)
+        );
         if (FAILED(hr)) {
             throw HrError("Failed to create IMMDeviceEnumerator.", hr);
         }
@@ -42,7 +43,11 @@ namespace recorder {
 
         wil::com_ptr_nothrow<IAudioSessionManager2> sessionManager;
         hr = device->Activate(
-                __uuidof(IAudioSessionManager2), CLSCTX_ALL, nullptr, reinterpret_cast<void **>(&sessionManager));
+              __uuidof(IAudioSessionManager2),
+              CLSCTX_ALL,
+              nullptr,
+              reinterpret_cast<void **>(&sessionManager)
+        );
         if (FAILED(hr)) {
             throw HrError("Failed to activate IAudioSessionManager2.", hr);
         }
@@ -63,13 +68,11 @@ namespace recorder {
         for (int i = 0; i < sessionCount; ++i) {
             wil::com_ptr_nothrow<IAudioSessionControl> sessionControl;
             hr = sessionEnumerator->GetSession(i, &sessionControl);
-            if (FAILED(hr))
-                continue;
+            if (FAILED(hr)) continue;
 
             wil::com_ptr_nothrow<IAudioSessionControl2> sessionControl2;
             hr = sessionControl->QueryInterface(IID_PPV_ARGS(&sessionControl2));
-            if (FAILED(hr))
-                continue;
+            if (FAILED(hr)) continue;
 
             DWORD sessionPID = 0;
             hr = sessionControl2->GetProcessId(&sessionPID);
@@ -97,13 +100,12 @@ namespace recorder {
         return std::ranges::any_of(pids, [&](auto pid) { return pid == process_id_; });
     }
 
-
     std::vector<ProcessInfo> ProcessLister::getAudioPlayingProcesses() {
         const auto processIDs = getAudioPlayingPids();
 
         // const std::vector<DWORD> rootProcessIDs = getRootProcesses(processIDs);
         std::vector<ProcessInfo> audioProcesses;
-        for (DWORD pid: processIDs) {
+        for (DWORD pid : processIDs) {
             std::string processName = getProcessNameByPID(pid);
             if (!processName.empty()) {
                 audioProcesses.emplace_back(processName, pid);
@@ -157,10 +159,12 @@ namespace recorder {
         CloseHandle(hSnapshot);
 
         std::vector<DWORD> roots;
-        for (const DWORD pid: processIDs) {
+        for (const DWORD pid : processIDs) {
             DWORD current = pid;
             // Make sure that parent process is actually alive
-            while (parentMap.contains(current) && parentMap[current] != 0 && allProcesses.contains(parentMap[current])) {
+            while (parentMap.contains(current)
+                   && parentMap[current] != 0
+                   && allProcesses.contains(parentMap[current])) {
                 current = parentMap[current];
             }
             if (std::ranges::find(roots, current) == roots.end()) {

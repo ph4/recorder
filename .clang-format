@@ -1,65 +1,38 @@
-# Generated from CLion C/C++ Code Style settings
 ---
 Language: Cpp
-BasedOnStyle: LLVM
-AccessModifierOffset: -4
-AlignConsecutiveAssignments: false
-AlignConsecutiveDeclarations: false
-AlignOperands: true
-AlignTrailingComments: false
-AlwaysBreakTemplateDeclarations: Yes
-BraceWrapping: 
-  AfterCaseLabel: false
-  AfterClass: false
-  AfterControlStatement: false
-  AfterEnum: false
-  AfterFunction: false
-  AfterNamespace: false
-  AfterStruct: false
-  AfterUnion: false
-  AfterExternBlock: false
-  BeforeCatch: false
-  BeforeElse: false
-  BeforeLambdaBody: false
-  BeforeWhile: false
-  SplitEmptyFunction: true
-  SplitEmptyRecord: true
-  SplitEmptyNamespace: true
-BreakBeforeBraces: Custom
+BasedOnStyle: Google
+IndentWidth: 4
+TabWidth: 4
+AccessModifierOffset: -2
+ColumnLimit: 100
+
+IncludeBlocks: Preserve
+
+NamespaceIndentation: All
+
+# Aligns too much to the right if =BeforeColon
+BreakInheritanceList: BeforeComma
+
+BreakAfterAttributes: Never
+BreakTemplateDeclarations: No
+# clang-format 21
+# BreakBeforeTemplateClosers: true
+
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: NextLine
+
+# clang-format 19
+BreakAfterReturnType: ExceptShortType
 
 BinPackArguments: false
 BinPackParameters: false
-#AllowAllArgumentsOnNextLine: false
-#PenaltyBreakBeforeFirstCallParameter: 1000
+AllowAllArgumentsOnNextLine: true
+AlignAfterOpenBracket: BlockIndent
+ContinuationIndentWidth: 6
 
-BreakConstructorInitializers: BeforeColon
-BreakConstructorInitializersBeforeComma: false
-ColumnLimit: 120
-ConstructorInitializerAllOnOneLineOrOnePerLine: true
-ContinuationIndentWidth: 8
-IncludeCategories: 
-  - Regex: '^<.*'
-    Priority: 1
-  - Regex: '^".*'
-    Priority: 2
-  - Regex: '.*'
-    Priority: 3
-IncludeIsMainRegex: '([-_](test|unittest))?$'
-IndentCaseLabels: true
-IndentWidth: 4
-InsertNewlineAtEOF: true
-MacroBlockBegin: ''
-MacroBlockEnd: ''
-MaxEmptyLinesToKeep: 2
-NamespaceIndentation: All
-SpaceAfterCStyleCast: true
-SpaceAfterTemplateKeyword: false
-SpaceBeforeRangeBasedForLoopColon: false
-SpaceInEmptyParentheses: false
-SpacesInAngles: false
-SpacesInConditionalStatement: false
-SpacesInCStyleCastParentheses: false
-SpacesInParentheses: false
-TabWidth: 4
-AllowAllConstructorInitializersOnNextLine: true
+AllowShortIfStatementsOnASingleLine: true
+BracedInitializerIndentWidth: 6
+BreakBinaryOperations: RespectPrecedence
+BreakBeforeBinaryOperators: NonAssignment
+SpacesBeforeTrailingComments: 1
 ...

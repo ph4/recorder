@@ -3,121 +3,98 @@
 #ifndef THREADSAFEQUEUE_HPP
 #define THREADSAFEQUEUE_HPP
 
-#include <mutex>
 #include <condition_variable>
+#include <mutex>
 
 #include <queue>
 #include <utility>
 
 #include <optional>
 
-template<class T>
-class ThreadSafeQueue {
+template <class T> class ThreadSafeQueue {
+    std::queue<T> queue_;
 
-	std::queue<T> queue_;
+    std::mutex mutex_;
+    std::condition_variable condition_var_;
 
-	std::mutex mutex_;
-	std::condition_variable condition_var_;
+    std::condition_variable sync_wait_;
+    bool finish_processing_ = false;
+    int sync_counter_ = 0;
 
-	std::condition_variable sync_wait_;
-	bool finish_processing_ = false;
-	int sync_counter_ = 0;
+    void DecreaseSyncCounter() {
+        if (--sync_counter_ == 0) {
+            sync_wait_.notify_one();
+        }
+    }
 
-	void DecreaseSyncCounter() {
-		if (--sync_counter_ == 0) {
-			sync_wait_.notify_one();
-		}
-	}
+  public:
+    typedef typename std::queue<T>::size_type size_type;
 
-public:
-	typedef typename std::queue<T>::size_type size_type;
+    ThreadSafeQueue() = default;
 
-	ThreadSafeQueue() = default;
+    ~ThreadSafeQueue() { Finish(); }
 
-	~ThreadSafeQueue() {
-		Finish();
-	}
+    void Produce(T&& item) {
+        std::lock_guard lock(mutex_);
 
-	void Produce(T&& item) {
+        queue_.push(std::move(item));
+        condition_var_.notify_one();
+    }
 
-		std::lock_guard lock(mutex_);
+    void Produce(const T& item) {
+        std::lock_guard lock(mutex_);
 
-		queue_.push(std::move(item));
-		condition_var_.notify_one();
+        queue_.push(item);
+        condition_var_.notify_one();
+    }
 
-	}
+    size_type Size() {
+        std::lock_guard lock(mutex_);
 
-	void Produce(const T& item) {
+        return queue_.size();
+    }
 
-		std::lock_guard lock(mutex_);
+    [[nodiscard]] std::optional<T> Consume() {
+        std::lock_guard lock(mutex_);
 
-		queue_.push(item);
-		condition_var_.notify_one();
+        if (queue_.empty()) {
+            return std::nullopt;
+        }
 
-	}
+        auto item = std::move(queue_.front());
+        queue_.pop();
 
-	size_type Size() {
+        return std::move(item);
+    }
 
-		std::lock_guard lock(mutex_);
+    [[nodiscard]] std::optional<T> ConsumeSync() {
+        std::unique_lock<std::mutex> lock(mutex_);
 
-		return queue_.size();
+        sync_counter_++;
 
-	}
+        condition_var_.wait(lock, [&] { return !queue_.empty() || finish_processing_; });
 
-	[[nodiscard]]
-	std::optional<T> Consume() {
+        if (queue_.empty()) {
+            DecreaseSyncCounter();
+            return std::nullopt;
+        }
 
-		std::lock_guard lock(mutex_);
+        auto item = std::move(queue_.front());
+        queue_.pop();
 
-		if (queue_.empty()) {
-			return std::nullopt;
-		}
+        DecreaseSyncCounter();
+        return item;
+    }
 
-		auto item = std::move(queue_.front());
-		queue_.pop();
+    void Finish() {
+        std::unique_lock lock(mutex_);
 
-		return std::move(item);
+        finish_processing_ = true;
+        condition_var_.notify_all();
 
-	}
+        sync_wait_.wait(lock, [&]() { return sync_counter_ == 0; });
 
-	[[nodiscard]]
-	std::optional<T> ConsumeSync() {
-
-		std::unique_lock<std::mutex> lock(mutex_);
-
-		sync_counter_++;
-
-		condition_var_.wait(lock, [&] {
-			return !queue_.empty() || finish_processing_;
-		});
-
-		if (queue_.empty()) {
-			DecreaseSyncCounter();
-			return std::nullopt;
-		}
-
-		auto item = std::move(queue_.front());
-		queue_.pop();
-
-		DecreaseSyncCounter();
-		return item;
-
-	}
-
-	void Finish() {
-
-		std::unique_lock lock(mutex_);
-
-		finish_processing_ = true;
-		condition_var_.notify_all();
-
-		sync_wait_.wait(lock, [&]() {
-			return sync_counter_ == 0;
-		});
-
-		finish_processing_ = false;
-
-	}
-
+        finish_processing_ = false;
+    }
 };
-#endif //THREADSAFEQUEUE_HPP
+#endif // THREADSAFEQUEUE_HPP

@@ -10,17 +10,14 @@
 #include <string>
 #include <variant>
 
-
 namespace recorder::audio {
     struct AudioFormat {
         uint16_t channels;
         uint32_t sampleRate;
     };
 
-
-    template<typename S>
-    class AudioSource {
-    public:
+    template <typename S> class AudioSource {
+      public:
         using CallBackT = std::function<void(std::span<S>)>;
         virtual ~AudioSource() = default;
 
@@ -40,28 +37,26 @@ namespace recorder::audio {
         virtual void Stop() = 0;
     };
 
-    template<typename S>
-    class ProcessAudioSource : public AudioSource<S> {
-    protected:
-
-    public:
+    template <typename S> class ProcessAudioSource : public AudioSource<S> {
+      protected:
+      public:
         virtual uint32_t GetPid() = 0;
     };
 
-    template<typename T>
-    class IAudioSourceFactory {
-    public:
+    template <typename T> class IAudioSourceFactory {
+      public:
         virtual ~IAudioSourceFactory() = default;
 
         virtual std::variant<std::unique_ptr<T>, std::string> Create(const AudioFormat &format) = 0;
     };
 
-    template<typename T>
-    class IProcessAudioSourceFactory {
-    public:
+    template <typename T> class IProcessAudioSourceFactory {
+      public:
         virtual ~IProcessAudioSourceFactory() = default;
 
-        virtual std::variant<std::unique_ptr<T>, std::string> Create(const AudioFormat &format, uint32_t pid) = 0;
+        virtual std::variant<std::unique_ptr<T>, std::string> Create(
+              const AudioFormat &format, uint32_t pid
+        ) = 0;
     };
-}
+} // namespace recorder::audio
 #endif

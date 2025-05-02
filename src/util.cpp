@@ -7,23 +7,27 @@
 #include <wil/resource.h>
 #include <winhttp.h>
 
-#include <string>
 #include <tlhelp32.h>
-#include <vector>
 #include <windows.h>
+#include <string>
+#include <vector>
 
 #include "spdlog/fmt/bundled/format.h"
 #include "spdlog/spdlog.h"
 
 std::string hresult_to_string(int hr) {
     wil::unique_hlocal_ansistring message;
-    FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-                   nullptr,
-                   hr,
-                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                   reinterpret_cast<PSTR>(&message),
-                   0,
-                   nullptr);
+    FormatMessageA(
+          FORMAT_MESSAGE_FROM_SYSTEM
+                | FORMAT_MESSAGE_IGNORE_INSERTS
+                | FORMAT_MESSAGE_ALLOCATE_BUFFER,
+          nullptr,
+          hr,
+          MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+          reinterpret_cast<PSTR>(&message),
+          0,
+          nullptr
+    );
     return fmt::format("{:x} : {}", hr, std::string(message.get()));
 }
 
@@ -38,7 +42,6 @@ std::string wstringToString(const std::wstring &wideStr) {
     return str;
 }
 
-
 ProxyConfig proxy_str_parse(LPWSTR strin) {
     auto str = wstringToString(std::wstring(strin));
     auto first = str.substr(0, str.find(';'));
@@ -47,8 +50,8 @@ ProxyConfig proxy_str_parse(LPWSTR strin) {
     auto host = str.substr(sp1 + 1, sp2 - sp1 - 1);
     auto port = std::stoi(str.substr(sp2 + 1));
     return ProxyConfig{
-            host,
-            port,
+          host,
+          port,
     };
 }
 
@@ -80,11 +83,10 @@ std::optional<ProxyConfig> get_proxy_config() {
     return std::nullopt;
 }
 
-struct backstage_pass {}; // now this is a dummy structure, not an object!
+struct backstage_pass {};                         // now this is a dummy structure, not an object!
 _Thrd_id_t std::thread::id::*get(backstage_pass); // declare fn to call
 
 // Explicitly instantiating the class generates the fn declared above.
 template class access_bypass<_Thrd_id_t std::thread::id::*, &std::thread::id::_Id, backstage_pass>;
 
 unsigned int get_thread_id(const std::thread::id &id) { return id.*get(backstage_pass()); };
-

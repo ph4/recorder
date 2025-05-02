@@ -4,23 +4,22 @@
 #ifndef OGG_OPUS_ENCODER_H
 #define OGG_OPUS_ENCODER_H
 
-#include <span>
 #include <array>
 #include <memory>
 #include <ostream>
 #include <random>
+#include <span>
 
-#include <spdlog/spdlog.h>
-#include <opus.h>
 #include <ogg/ogg.h>
+#include <opus.h>
+#include <spdlog/spdlog.h>
 
-
-#include "RingBuffer.hpp"
 #include "AudioSource.hpp"
+#include "RingBuffer.hpp"
 
 namespace recorder::audio {
-    // Assume LittleEndian
-    #pragma pack(push, 1)
+// Assume LittleEndian
+#pragma pack(push, 1)
     extern "C" struct OpusHeader {
         uint8_t magic[8] = {'O', 'p', 'u', 's', 'H', 'e', 'a', 'd'};
         uint8_t version = 1;
@@ -30,7 +29,7 @@ namespace recorder::audio {
         uint16_t gain = 0;
         uint8_t channelMap = 0;
     };
-    #pragma pack(pop)
+#pragma pack(pop)
 
     class OggOpusEncoder {
         static constexpr size_t OpusFrameSizeMS = 20;
@@ -45,32 +44,40 @@ namespace recorder::audio {
         std::unique_ptr<InterleaveRingBufferHeap<int16_t, 1, 3>> frame_buffer_;
 
         static void opusEncoderDeleter(OpusEncoder *encoder) {
-            if (encoder != nullptr)
-                opus_encoder_destroy(encoder);
+            if (encoder != nullptr) opus_encoder_destroy(encoder);
         };
         std::unique_ptr<OpusEncoder, decltype(&opusEncoderDeleter)> encoder_;
         ogg_stream_state ogg_stream_state_{};
 
-
-    public:
+      public:
         [[nodiscard]] size_t samples_in_opus_frame() const {
             return OpusFrameSizeMS * format_.sampleRate * format_.channels / 1000;
         }
 
-        OggOpusEncoder(std::shared_ptr<std::ostream> writer_, const AudioFormat format, const int32_t bitrate_kbps)
+        OggOpusEncoder(
+              std::shared_ptr<std::ostream> writer_,
+              const AudioFormat format,
+              const int32_t bitrate_kbps
+        )
             : writer_(std::move(writer_)),
               format_(format),
               bitrate_kbps_(bitrate_kbps),
-              frame_buffer_(std::make_unique<InterleaveRingBufferHeap<int16_t, 1, 3>>(samples_in_opus_frame())),
+              frame_buffer_(
+                    std::make_unique<InterleaveRingBufferHeap<int16_t, 1, 3>>(samples_in_opus_frame(
+                    ))
+              ),
               encoder_(
-                  static_cast<std::unique_ptr<OpusEncoder, decltype(&opusEncoderDeleter)>::pointer>(malloc(
-                      opus_encoder_get_size(format.channels))),
-                  &opusEncoderDeleter
-              ) {
-        }
+                    static_cast<
+                          std::unique_ptr<OpusEncoder, decltype(&opusEncoderDeleter)>::pointer>(
+                          malloc(opus_encoder_get_size(format.channels))
+                    ),
+                    &opusEncoderDeleter
+              ) {}
 
         int Init() {
-            auto err = opus_encoder_init(encoder_.get(), format_.sampleRate , format_.channels, OPUS_APPLICATION_VOIP);
+            auto err = opus_encoder_init(
+                  encoder_.get(), format_.sampleRate, format_.channels, OPUS_APPLICATION_VOIP
+            );
             if (err != OPUS_OK) {
                 SPDLOG_ERROR("opus_encoder_init failed: {}", err);
                 return -1;
@@ -147,7 +154,7 @@ namespace recorder::audio {
             return 0;
         }
 
-    private:
+      private:
         int WritePage(const ogg_page &page) const {
             writer_->write(reinterpret_cast<char *>(page.header), page.header_len);
             writer_->write(reinterpret_cast<char *>(page.body), page.body_len);
@@ -156,11 +163,15 @@ namespace recorder::audio {
         }
 
         int EncodeFrame(const std::span<const int16_t> frame, const bool last = false) {
-            //maximum size recommended by opus
+            // maximum size recommended by opus
             std::array<uint8_t, 4000> encoded{};
-            const auto encoded_size = opus_encode(encoder_.get(), frame.data(), frame.size() / format_.channels,
-                                                  encoded.data(),
-                                                  encoded.size());
+            const auto encoded_size = opus_encode(
+                  encoder_.get(),
+                  frame.data(),
+                  frame.size() / format_.channels,
+                  encoded.data(),
+                  encoded.size()
+            );
             if (encoded_size < 0) {
                 SPDLOG_ERROR("opus_encode failed: {}", opus_strerror(encoded_size));
                 return encoded_size;
@@ -209,5 +220,5 @@ namespace recorder::audio {
             return 0;
         }
     };
-}
+} // namespace recorder::audio
 #endif

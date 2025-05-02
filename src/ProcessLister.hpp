@@ -4,10 +4,9 @@
 #ifndef PROCESSLISTER_HPP
 #define PROCESSLISTER_HPP
 
+#include <windows.h>
 #include <string>
 #include <vector>
-#include <windows.h>
-
 
 namespace recorder {
     std::vector<DWORD> getAudioPlayingPids();
@@ -16,8 +15,9 @@ namespace recorder {
         std::string process_name_;
         DWORD process_id_;
 
-    public:
-        ProcessInfo(std::string name, const DWORD pid) : process_name_(std::move(name)), process_id_(pid) {}
+      public:
+        ProcessInfo(std::string name, const DWORD pid)
+            : process_name_(std::move(name)), process_id_(pid) {}
 
         [[nodiscard]] std::string process_name() const;
 
@@ -29,13 +29,13 @@ namespace recorder {
     };
 
     class ProcessLister {
-    public:
+      public:
         static std::vector<ProcessInfo> getAudioPlayingProcesses();
 
-    private:
+      private:
         static std::string getProcessNameByPID(const DWORD pid);
 
         static std::vector<DWORD> getRootProcesses(const std::vector<DWORD> &processIDs);
     };
 } // namespace recorder
-#endif //PROCESSLISTER_HPP
+#endif // PROCESSLISTER_HPP

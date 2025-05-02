@@ -11,5 +11,5 @@ namespace recorder::velopack {
     std::string get_version();
     void update_app();
     int init_velopack();
-}
-#endif //VELOPACK_MY_HPP
+} // namespace recorder::velopack
+#endif // VELOPACK_MY_HPP

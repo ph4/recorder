@@ -9,16 +9,14 @@
 
 #include "Controller.hpp"
 
-
 #include "audio/AudioSource.hpp"
 #include "audio/WinAudioSource.hpp"
 
 #include "Api.hpp"
-#include "Models.hpp"
 #include "FileUploader.hpp"
-#include "ProcessRecorder.hpp"
+#include "Models.hpp"
 #include "ProcessLister.hpp"
-
+#include "ProcessRecorder.hpp"
 
 struct RecorderItem {
     std::unique_ptr<recorder::ProcessRecorder<int16_t>> recorder;
@@ -36,7 +34,6 @@ namespace recorder {
         std::unordered_map<std::string, std::unique_ptr<RecorderItem>> recorders_{};
         std::unordered_set<std::string> app_whitelist_{};
 
-
         void LoadConfig();
 
         void Register();
@@ -49,12 +46,12 @@ namespace recorder {
 
         void RemoveStoppedProcesses();
 
-    public:
+      public:
         Recorder() = default;
 
         void Init();
 
         bool ListenProcesses();
     };
-}
+} // namespace recorder
 #endif

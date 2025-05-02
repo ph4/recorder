@@ -1,42 +1,39 @@
 #include "hwid.hpp"
 
 #include <array>
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
 
-#include <windows.h>
+#include <atlbase.h>
+#include <atlconv.h>
 #include <combaseapi.h>
 #include <wbemcli.h>
 #include <wil/com.h>
-#include <atlbase.h>
-#include <atlconv.h>
+#include <windows.h>
 
-#include <spdlog/spdlog.h>
-#include <sha256.h>
 #include <hmac_sha256.h>
+#include <sha256.h>
+#include <spdlog/spdlog.h>
 
 #include "util.hpp"
 
-//Should be called only once
-[[nodiscard]] int WmiConnection::init_security()
-{
-
+// Should be called only once
+[[nodiscard]] int WmiConnection::init_security() {
     // Set general COM security levels
-    auto hr =  CoInitializeSecurity(
-            nullptr,
-            -1,                          // COM authentication
-            nullptr,                        // Authentication services
-            nullptr,                        // Reserved
-            RPC_C_AUTHN_LEVEL_DEFAULT,   // Default authentication
-            RPC_C_IMP_LEVEL_IMPERSONATE, // Default Impersonation
-            nullptr,                        // Authentication info
-            EOAC_NONE,                   // Additional capabilities
-            nullptr            // Reserved
-            );
+    auto hr = CoInitializeSecurity(
+          nullptr,
+          -1,                          // COM authentication
+          nullptr,                     // Authentication services
+          nullptr,                     // Reserved
+          RPC_C_AUTHN_LEVEL_DEFAULT,   // Default authentication
+          RPC_C_IMP_LEVEL_IMPERSONATE, // Default Impersonation
+          nullptr,                     // Authentication info
+          EOAC_NONE,                   // Additional capabilities
+          nullptr                      // Reserved
+    );
 
-    if (FAILED(hr))
-    {
+    if (FAILED(hr)) {
         SPDLOG_ERROR("CoInitializeSecurity failed. {}", hresult_to_string(hr));
         return hr;
     }
@@ -46,10 +43,12 @@
 [[nodiscard]] int WmiConnection::create_services(const std::string &path) {
     wil::com_ptr_nothrow<IWbemLocator> loc;
     HRESULT hr = CoCreateInstance(
-            CLSID_WbemLocator,
-            nullptr,
-            CLSCTX_INPROC_SERVER,
-            IID_IWbemLocator, reinterpret_cast<LPVOID *>(&loc));
+          CLSID_WbemLocator,
+          nullptr,
+          CLSCTX_INPROC_SERVER,
+          IID_IWbemLocator,
+          reinterpret_cast<LPVOID *>(&loc)
+    );
 
     if (FAILED(hr)) {
         SPDLOG_ERROR("Failed to create IWbemLocator {}", hresult_to_string(hr));
@@ -61,16 +60,17 @@
     // Connect to the namespace
     // and obtain pointer pSvc to make IWbemServices calls.
     hr = loc->ConnectServer(
-            bstr_path.get(),
-            wil::unique_bstr().get(),
-            wil::unique_bstr().get(),
-            wil::unique_bstr().get(),
-            WBEM_FLAG_CONNECT_USE_MAX_WAIT,
-            wil::unique_bstr().get(),
-            nullptr,
-            &this->svc);
+          bstr_path.get(),
+          wil::unique_bstr().get(),
+          wil::unique_bstr().get(),
+          wil::unique_bstr().get(),
+          WBEM_FLAG_CONNECT_USE_MAX_WAIT,
+          wil::unique_bstr().get(),
+          nullptr,
+          &this->svc
+    );
 
-    if(this->svc.get() == (IWbemServices*)-1) {
+    if (this->svc.get() == (IWbemServices *)-1) {
         throw std::runtime_error("Failed to connect to WMI (ptr = -1)");
     }
 
@@ -82,14 +82,16 @@
     SPDLOG_DEBUG("Connected to {} WMI namespace", path.c_str());
 
     // Set security levels on the proxy
-    hr = CoSetProxyBlanket(svc.get(), // Indicates the proxy to set
-            RPC_C_AUTHN_WINNT, // RPC_C_AUTHN_xxx
-            RPC_C_AUTHZ_NONE, // RPC_C_AUTHZ_xxx
-            nullptr, // Server principal name
-            RPC_C_AUTHN_LEVEL_CALL, // RPC_C_AUTHN_LEVEL_xxx
-            RPC_C_IMP_LEVEL_IMPERSONATE, // RPC_C_IMP_LEVEL_xxx
-            nullptr, // client identity
-            EOAC_NONE); // proxy capabilities
+    hr = CoSetProxyBlanket(
+          svc.get(),                   // Indicates the proxy to set
+          RPC_C_AUTHN_WINNT,           // RPC_C_AUTHN_xxx
+          RPC_C_AUTHZ_NONE,            // RPC_C_AUTHZ_xxx
+          nullptr,                     // Server principal name
+          RPC_C_AUTHN_LEVEL_CALL,      // RPC_C_AUTHN_LEVEL_xxx
+          RPC_C_IMP_LEVEL_IMPERSONATE, // RPC_C_IMP_LEVEL_xxx
+          nullptr,                     // client identity
+          EOAC_NONE
+    ); // proxy capabilities
 
     if (FAILED(hr)) {
         SPDLOG_ERROR("Could not set proxy blanket. {}", hresult_to_string(hr));
@@ -100,16 +102,16 @@
 }
 using QueryResults = std::vector<std::map<std::string, std::string>>;
 
-[[nodiscard]]
-int WmiConnection::do_query(const std::string &query, QueryResults &result) const {
+[[nodiscard]] int WmiConnection::do_query(const std::string &query, QueryResults &result) const {
     // Use the IWbemServices pointer to make requests of WMI ----
     wil::com_ptr_nothrow<IEnumWbemClassObject> enumerator;
     auto hr = svc->ExecQuery(
-            wil::make_bstr(L"WQL").get(),
-            wil::make_bstr(CA2W(query.c_str())).get(),
-            WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-            nullptr,
-            &enumerator);
+          wil::make_bstr(L"WQL").get(),
+          wil::make_bstr(CA2W(query.c_str())).get(),
+          WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+          nullptr,
+          &enumerator
+    );
 
     if (FAILED(hr)) {
         SPDLOG_ERROR("Could not execute query {}", hresult_to_string(hr));
@@ -125,7 +127,6 @@ int WmiConnection::do_query(const std::string &query, QueryResults &result) cons
         RETURN_IF_FAILED(hr);
         if (uReturn == 0) break; // Enumeration endedq
 
-
         VARIANT vtProp;
         VariantInit(&vtProp);
         RETURN_IF_FAILED(clobj->BeginEnumeration(0));
@@ -133,7 +134,7 @@ int WmiConnection::do_query(const std::string &query, QueryResults &result) cons
             wil::unique_bstr name;
             CIMTYPE type;
             tag_WBEM_FLAVOR_TYPE flavor;
-            hr = clobj->Next(0, &name, &vtProp, &type, reinterpret_cast<long*>(&flavor));
+            hr = clobj->Next(0, &name, &vtProp, &type, reinterpret_cast<long *>(&flavor));
             if (flavor == WBEM_FLAVOR_ORIGIN_SYSTEM) continue;
 
             if (hr == WBEM_S_NO_MORE_DATA) break;
@@ -170,7 +171,6 @@ int WmiConnection::create_wmi() {
     return 0;
 }
 
-
 std::string get_uuid() {
     std::string key = "cpp-recorder";
     std::vector<byte> data{};
@@ -194,7 +194,9 @@ std::string get_uuid() {
     results.clear();
     hr = connection.do_query("SELECT UUID from Win32_ComputerSystemProduct", results);
     if (hr) {
-        SPDLOG_ERROR("Getting UUID from Win32_ComputerSystemProduct failed. {}", hresult_to_string(hr));
+        SPDLOG_ERROR(
+              "Getting UUID from Win32_ComputerSystemProduct failed. {}", hresult_to_string(hr)
+        );
         throw std::runtime_error("Getting UUID from Win32_ComputerSystemProduct failed.");
     }
     assert(!results.empty());
@@ -207,9 +209,9 @@ std::string get_uuid() {
 
     std::string res(36, 'X');
     auto it = res.begin();
-    for (auto i =0; i < 16; i++) {
+    for (auto i = 0; i < 16; i++) {
         const auto hex = "0123456789abcdef";
-        const auto b = out[i*2];
+        const auto b = out[i * 2];
         if (i == 4 || i == 6 || i == 8 || i == 10) {
             *(it++) = '-';
         }

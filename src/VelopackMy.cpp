@@ -25,7 +25,7 @@ namespace recorder::velopack {
         return {"debug"};
 #else
         return update_channel;
-# endif
+#endif
     }
 
     std::string get_version() {
@@ -33,7 +33,7 @@ namespace recorder::velopack {
         return {"0.0.0"};
 #else
         auto um = update_manager.get();
-        const auto upd = reinterpret_cast<vpkc_update_manager_t**>(um)[0];
+        const auto upd = reinterpret_cast<vpkc_update_manager_t **>(um)[0];
         char version[255];
         vpkc_get_current_version(upd, version, sizeof(version));
         return {version};
@@ -60,27 +60,28 @@ namespace recorder::velopack {
 
     int init_velopack() {
         vpkc_set_logger(
-                [](void *p_user_data, const char *psz_level, const char *psz_message) {
-                    spdlog::log(spdlog::level::from_str(psz_level), psz_message);
-                },
-                nullptr);
+              [](void *p_user_data, const char *psz_level, const char *psz_message) {
+                  spdlog::log(spdlog::level::from_str(psz_level), psz_message);
+              },
+              nullptr
+        );
 
         try {
-            auto options = Velopack::UpdateOptions {
-                .AllowVersionDowngrade = true,
-                .ExplicitChannel = update_channel,
+            auto options = Velopack::UpdateOptions{
+                  .AllowVersionDowngrade = true,
+                  .ExplicitChannel = update_channel,
             };
-            update_manager = std::make_unique<Velopack::UpdateManager>(VELOPACK_UPDATE_ROOT, &options);
+            update_manager =
+                  std::make_unique<Velopack::UpdateManager>(VELOPACK_UPDATE_ROOT, &options);
             SPDLOG_INFO("update_manager->GetAppId() {}", update_manager->GetAppId());
         } catch (const std::exception &e) {
             SPDLOG_ERROR(e.what());
             return EXIT_FAILURE;
         }
-        Velopack::VelopackApp::Build()
-                .Run();
+        Velopack::VelopackApp::Build().Run();
         update_app();
         return EXIT_SUCCESS;
     }
 
-} // namespace velo
-#endif //VELOPACK_MY_HPP
+} // namespace recorder::velopack
+#endif // VELOPACK_MY_HPP

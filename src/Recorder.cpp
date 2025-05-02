@@ -4,8 +4,8 @@
 #include "Recorder.hpp"
 
 // Have to include it here so static functions compile
-#include <yyjson.h>
 #include <strsafe.h>
+#include <yyjson.h>
 
 #include <ranges>
 
@@ -13,10 +13,9 @@
 #include <rfl/toml/load.hpp>
 #include <rfl/toml/save.hpp>
 
-#include "Models.hpp"
 #include "Controller.hpp"
+#include "Models.hpp"
 #include "audio/WinAudioSource.hpp"
-
 
 using namespace std::chrono;
 namespace rv = std::ranges::views;
@@ -24,9 +23,10 @@ namespace rv = std::ranges::views;
 namespace recorder {
     void Recorder::LoadConfig() {
         auto config_path = ".\\config.toml";
-        auto config_load = rfl::toml::load<models::LocalConfig>(config_path).and_then([](auto config) {
-            return rfl::Result(std::make_shared<models::LocalConfig>(std::move(config)));
-        });
+        auto config_load =
+              rfl::toml::load<models::LocalConfig>(config_path).and_then([](auto config) {
+                  return rfl::Result(std::make_shared<models::LocalConfig>(std::move(config)));
+              });
         if (!config_load) {
             auto a = config_load.error().value();
             SPDLOG_ERROR("Error reading config ({})", config_load.error().value().what());
@@ -42,7 +42,6 @@ namespace recorder {
             throw std::runtime_error("Error authorizing API ({})");
             return std::monostate{};
         });
-
 
         SPDLOG_TRACE("api.EnsureAuthorized()");
         auto api_a = api_->EnsureAuthorized();
@@ -73,7 +72,7 @@ namespace recorder {
 
     void Recorder::StopAll() {
         SPDLOG_TRACE("Recorder::StopAll()");
-        for (const auto &recorder: this->recorders_ | std::views::values) {
+        for (const auto &recorder : this->recorders_ | std::views::values) {
             const auto &rec = recorder->recorder;
             rec->Stop();
         }
@@ -82,19 +81,21 @@ namespace recorder {
     void Recorder::StartListeningProcess(const ProcessInfo &pi) {
         SPDLOG_TRACE("Recorder::StartRecordingOnProcess()");
         auto audio_format = audio::AudioFormat{
-                .channels = 1,
-                .sampleRate = 16000,
+              .channels = 1,
+              .sampleRate = 16000,
         };
         auto audio_source_factory = [](auto fmt, auto cb, auto scb, auto pid, auto lb) {
             return std::make_unique<audio::windows::WinAudioSource<int16_t>>(fmt, cb, scb, pid, lb);
         };
 
-        auto recorder = std::make_unique<ProcessRecorder<int16_t>>(this->controller_,
-                                                                   pi.process_name(),
-                                                                   this->uploader_,
-                                                                   audio_format,
-                                                                   pi.process_id(),
-                                                                   audio_source_factory);
+        auto recorder = std::make_unique<ProcessRecorder<int16_t>>(
+              this->controller_,
+              pi.process_name(),
+              this->uploader_,
+              audio_format,
+              pi.process_id(),
+              audio_source_factory
+        );
         SPDLOG_INFO("Starting listening on {}", pi.process_name());
         recorder->Play();
         auto ri = std::make_unique<RecorderItem>(std::move(recorder), pi);
@@ -103,14 +104,14 @@ namespace recorder {
 
     void Recorder::AddNewProcesses() {
         auto playing_processes = process_lister_.getAudioPlayingProcesses();
-        auto new_processes =
-                playing_processes | rv::filter([&](const ProcessInfo &pi) {
-                    return app_whitelist_.contains(pi.process_name()) && !recorders_.contains(pi.process_name());
-                });
+        auto new_processes = playing_processes | rv::filter([&](const ProcessInfo &pi) {
+                                 return app_whitelist_.contains(pi.process_name())
+                                        && !recorders_.contains(pi.process_name());
+                             });
         if (!new_processes.empty()) {
             SPDLOG_DEBUG("NewProcesses:");
         }
-        for (const auto &p: new_processes) {
+        for (const auto &p : new_processes) {
             SPDLOG_INFO("\t{} -> StartRecordingOnProcess", p.process_name());
             StartListeningProcess(p);
         }
@@ -118,14 +119,14 @@ namespace recorder {
 
     void Recorder::RemoveStoppedProcesses() {
         auto to_remove = std::vector<std::string>();
-        for (const auto &[k, v]: this->recorders_) {
+        for (const auto &[k, v] : this->recorders_) {
             if (!v->process.isAlive()) {
                 SPDLOG_INFO("Stopping recording on {}", v->process.process_name());
                 v->recorder->Stop();
                 to_remove.push_back(k);
             }
         }
-        for (const auto &k: to_remove) {
+        for (const auto &k : to_remove) {
             this->recorders_.erase(k);
         }
     }
@@ -166,15 +167,17 @@ namespace recorder {
         this->uploader_ = std::make_shared<FileUploader>(api_, std::filesystem::path("./records/"));
         SPDLOG_TRACE("Creating controller");
         this->controller_ = std::make_shared<Controller>(api_, 5000);
-        // controller->SetStatus("main", recorder::InternalStatusBase{.type = recorder::InternalStatusType::idle});
+        // controller->SetStatus("main", recorder::InternalStatusBase{.type =
+        // recorder::InternalStatusType::idle});
 
-        const auto wl = this->remote_config_.app_configs | rv::transform([](models::App app) { return app.exe_name; });
-        for (auto e: wl) {
+        const auto wl = this->remote_config_.app_configs
+                        | rv::transform([](models::App app) { return app.exe_name; });
+        for (auto e : wl) {
             app_whitelist_.insert(e);
         }
 
         SPDLOG_DEBUG("App whitelist:");
-        for (auto app: app_whitelist_) {
+        for (auto app : app_whitelist_) {
             SPDLOG_DEBUG("\t{}", app);
         }
     }

@@ -6,26 +6,26 @@
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <condition_variable>
 #include <thread>
 
 #include "WinCapture.hpp"
 
+#include "AudioDeviceMonitor.hpp"
 #include "AudioSource.hpp"
 #include "SignalMonitor.hpp"
-#include "AudioDeviceMonitor.hpp"
 
 namespace recorder::audio::windows {
     using namespace recorder::audio;
 
-    template<typename S>
-    class WinAudioSource : public ProcessAudioSource<S>, SignalMonitorSimple {
+    template <typename S> class WinAudioSource
+        : public ProcessAudioSource<S>
+        , SignalMonitorSimple {
         using State = typename ProcessAudioSource<S>::State;
         using DeviceState = typename WinCapture<S>::DeviceState;
         using CallBackT = typename ProcessAudioSource<S>::CallBackT;
-
 
         bool started_ = false;
         std::unique_ptr<AudioDeviceMonitor<S>> device_monitor = nullptr;
@@ -48,23 +48,25 @@ namespace recorder::audio::windows {
 
         bool checkNewAudio(std::span<S> audio) {
             // Windows sometimes has samples with value of +-1 on silent streams
-            auto has_signal = std::any_of(audio.begin(), audio.end(), [&](auto s) { return std::abs(s) > 1; });
+            auto has_signal =
+                  std::any_of(audio.begin(), audio.end(), [&](auto s) { return std::abs(s) > 1; });
             if (active_ && has_signal) {
                 samples_without_signal_ = 0;
-            }
-            else if (!active_ && has_signal) {
+            } else if (!active_ && has_signal) {
                 active_ = true;
                 samples_without_signal_ = 0;
                 const SignalActiveData data{
-                        .timestamp = std::chrono::system_clock::now(),
-                        .activationSource = std::string("silence"),
-                        .metadata = std::nullopt,
+                      .timestamp = std::chrono::system_clock::now(),
+                      .activationSource = std::string("silence"),
+                      .metadata = std::nullopt,
                 };
                 this->signal_callbacks_.onActivated(data);
             } else if (active_ && !has_signal) {
                 samples_without_signal_ += audio.size();
-                const size_t samples_per_sec = capture_->GetFormat()->nSamplesPerSec * capture_->GetFormat()->nChannels;
-                if (samples_without_signal_ > samples_per_sec * signal_callbacks_.max_silence_seconds ) {
+                const size_t samples_per_sec =
+                      capture_->GetFormat()->nSamplesPerSec * capture_->GetFormat()->nChannels;
+                if (samples_without_signal_
+                    > samples_per_sec * signal_callbacks_.max_silence_seconds) {
                     active_ = false;
                     this->signal_callbacks_.onDeactivated(SignalInactiveData{});
                 }
@@ -72,26 +74,30 @@ namespace recorder::audio::windows {
             return active_;
         };
         using ProcessAudioSource<S>::ProcessAudioSource;
-    public:
-        explicit WinAudioSource(AudioFormat format,
-                                typename AudioSource<S>::CallBackT callback,
-                                const SignalMonitorSilenceCallbacks &signal_callbacks,
-                                uint32_t pid,
-                                bool loopback
-                                )
+
+      public:
+        explicit WinAudioSource(
+              AudioFormat format,
+              typename AudioSource<S>::CallBackT callback,
+              const SignalMonitorSilenceCallbacks &signal_callbacks,
+              uint32_t pid,
+              bool loopback
+        )
             : ProcessAudioSource<S>(),
               callback_(callback),
               signal_callbacks_(signal_callbacks),
-              capture_(Microsoft::WRL::Make<WinCapture<S>>(
-                               format,
-                               200000,
-                               [this](auto audio) {
-                                   this->checkNewAudio(audio);
-                                   callback_(audio);
-                               },
-                               pid,
-                               loopback)) {
-
+              capture_(
+                    Microsoft::WRL::Make<WinCapture<S>>(
+                          format,
+                          200000,
+                          [this](auto audio) {
+                              this->checkNewAudio(audio);
+                              callback_(audio);
+                          },
+                          pid,
+                          loopback
+                    )
+              ) {
             if (!loopback && pid != 0) {
                 throw std::invalid_argument("pid is invalid");
             }
@@ -103,7 +109,6 @@ namespace recorder::audio::windows {
             THROW_IF_FAILED(capture_->Initialize());
             THROW_IF_FAILED(capture_->ActivateAudioInterface());
         }
-
 
         State GetState() override {
             switch (capture_->GetDeviceState()) {
@@ -132,7 +137,8 @@ namespace recorder::audio::windows {
         };
 
         void Play() override {
-            if (capture_->GetDeviceState() == DeviceState::Initialized || capture_->GetDeviceState() == DeviceState::Stopped) {
+            if (capture_->GetDeviceState() == DeviceState::Initialized
+                || capture_->GetDeviceState() == DeviceState::Stopped) {
                 thread_ = std::thread(&WinAudioSource::process, this);
                 if (const auto res = capture_->StartCapture()) {
                     throw std::runtime_error("StartCapture failed: " + hresult_to_string(res));
@@ -158,13 +164,9 @@ namespace recorder::audio::windows {
             }
         }
 
-        uint32_t GetPid() override {
-            return capture_->GetPid();
-        }
+        uint32_t GetPid() override { return capture_->GetPid(); }
 
-        bool HasSignal() override {
-            return active_;
-        };
+        bool HasSignal() override { return active_; };
 
         ~WinAudioSource() override {
             if (thread_.joinable()) {
@@ -175,5 +177,5 @@ namespace recorder::audio::windows {
 
     template class WinAudioSource<int16_t>;
 
-}
+} // namespace recorder::audio::windows
 #endif
