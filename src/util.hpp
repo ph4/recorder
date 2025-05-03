@@ -35,7 +35,7 @@ class HrError final : public std::exception {
     const char *message_;
     const std::string what_;
 
-  public:
+public:
     explicit HrError(const char *message, const HRESULT hr)
         : hr_(hr), message_(message), what_(std::format("{} ({:#X})", message_, hr_)) {}
     const char *what() const noexcept override { return what_.c_str(); }

@@ -13,7 +13,7 @@
 
 template <typename ArrayT, typename T, size_t NChannels, size_t NChunks>
 class InterleaveRingBufferBase {
-  protected:
+protected:
     std::mutex mutex;
     const size_t chunk_frames_;
     const size_t chunk_samples_;
@@ -76,7 +76,7 @@ class InterleaveRingBufferBase {
         }
     }
 
-  public:
+public:
     ~InterleaveRingBufferBase() = default;
 
     void Clear() {
@@ -147,7 +147,7 @@ class InterleaveRingBuffer
             T,
             NChannels,
             NChunks> {
-  public:
+public:
     InterleaveRingBuffer()
         : InterleaveRingBufferBase<
                 std::array<T, ChunkFrames * NChannels * NChunks>,
@@ -160,7 +160,7 @@ class InterleaveRingBuffer
 
 template <typename T, size_t NChannels, size_t NChunks> class InterleaveRingBufferHeap
     : public InterleaveRingBufferBase<std::vector<T>, T, NChannels, NChunks> {
-  public:
+public:
     explicit InterleaveRingBufferHeap(const size_t chunk_frames)
         : InterleaveRingBufferBase<std::vector<T>, T, NChannels, NChunks>(
                 std::move(std::vector<T>(chunk_frames * NChannels * NChunks, 0)), chunk_frames

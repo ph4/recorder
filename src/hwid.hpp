@@ -14,7 +14,7 @@
 #include <windows.h>
 
 class WmiConnection {
-  public:
+public:
     wil::com_ptr_nothrow<IWbemServices> svc;
 
     // Should be called only once

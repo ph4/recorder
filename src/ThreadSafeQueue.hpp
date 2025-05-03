@@ -27,7 +27,7 @@ template <class T> class ThreadSafeQueue {
         }
     }
 
-  public:
+public:
     typedef typename std::queue<T>::size_type size_type;
 
     ThreadSafeQueue() = default;

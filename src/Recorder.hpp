@@ -24,34 +24,34 @@ struct RecorderItem {
 };
 
 namespace recorder {
-    class Recorder {
-        std::shared_ptr<models::LocalConfig> config_{};
-        models::RemoteConfig remote_config_{};
-        std::shared_ptr<Api> api_{};
-        std::shared_ptr<FileUploader> uploader_{};
-        std::shared_ptr<Controller> controller_{};
-        ProcessLister process_lister_{};
-        std::unordered_map<std::string, std::unique_ptr<RecorderItem>> recorders_{};
-        std::unordered_set<std::string> app_whitelist_{};
+class Recorder {
+    std::shared_ptr<models::LocalConfig> config_{};
+    models::RemoteConfig remote_config_{};
+    std::shared_ptr<Api> api_{};
+    std::shared_ptr<FileUploader> uploader_{};
+    std::shared_ptr<Controller> controller_{};
+    ProcessLister process_lister_{};
+    std::unordered_map<std::string, std::unique_ptr<RecorderItem>> recorders_{};
+    std::unordered_set<std::string> app_whitelist_{};
 
-        void LoadConfig();
+    void LoadConfig();
 
-        void Register();
+    void Register();
 
-        void StopAll();
+    void StopAll();
 
-        void StartListeningProcess(const ProcessInfo &pi);
+    void StartListeningProcess(const ProcessInfo &pi);
 
-        void AddNewProcesses();
+    void AddNewProcesses();
 
-        void RemoveStoppedProcesses();
+    void RemoveStoppedProcesses();
 
-      public:
-        Recorder() = default;
+public:
+    Recorder() = default;
 
-        void Init();
+    void Init();
 
-        bool ListenProcesses();
-    };
+    bool ListenProcesses();
+};
 } // namespace recorder
 #endif
