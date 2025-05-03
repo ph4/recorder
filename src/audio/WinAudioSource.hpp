@@ -99,22 +99,15 @@ namespace recorder::audio::windows {
         }
 
         State GetState() override {
-            switch (capture_->GetDeviceState()) {
-                case DeviceState::Uninitialized: // NOLINT(*-branch-clone)
-                    return State::Uninitialized;
-                case DeviceState::Initialized:
-                case DeviceState::Stopped:
-                case DeviceState::Stopping:
-                    return State::Stopped;
-                case DeviceState::Capturing:
-                case DeviceState::Starting:
-                    return State::Playing;
-                case DeviceState::Error:
+            if (capture_) {
+                if (capture_->GetError())
                     return State::Error;
-                default:
-                    throw std::runtime_error("Unexpected DeviceState");
+                else
+                    returrn State::Capturing;
+            } else {
+                return State::Stopped;
             }
-        };
+        }
 
         void SetCallback(const CallBackT cb) override {
             throw std::runtime_error("Not implemented");
@@ -132,7 +125,7 @@ namespace recorder::audio::windows {
             }
         }
 
-        uint32_t GetPid() override { return capture_->GetPid(); }
+        uint32_t GetPid() override { throw std::runtime_error("Not implemented"); }
 
         bool HasSignal() override { return active_; };
 

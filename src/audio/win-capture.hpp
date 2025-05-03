@@ -7,7 +7,6 @@
 
 #include <array>
 #include <functional>
-#include <memory>
 #include <span>
 
 #include <Audioclient.h>
@@ -76,17 +75,16 @@ namespace recorder::audio::windows {
 
       private:
         std::array<wil::unique_event, CaptureEvents::Count> events_;
-        // wil::unique_event events_[CaptureEvents::Count]{};
 
         wil::unique_couninitialize_call couninit{wil::CoInitializeEx()};
-
-        DeviceState device_state{DeviceState::Uninitialized};
 
         CallBackT callback_;
         const uint32_t pid_;
         const bool is_loopback_;
         const WAVEFORMATEX format_{};
         const uint32_t buffer_size_ns_;
+
+        std::optional<std::exception> error_;
 
         wil::com_ptr<IAudioClient> client_;
         wil::com_ptr<IAudioCaptureClient> capture_client_;
@@ -98,9 +96,7 @@ namespace recorder::audio::windows {
 
         WinCapture &operator=(const WinCapture &) = delete;
 
-        DeviceState GetDeviceState() const { return device_state; }
-
-        uint32_t GetPid() const { return pid_; }
+        std::optional<std::exception> GetError() const { return error_; }
 
         const WAVEFORMATEX *const GetFormat() const { return &format_; }
 
@@ -178,40 +174,39 @@ namespace recorder::audio::windows {
             );
 
             THROW_IF_FAILED(client_->SetEventHandle(events_[CaptureEvents::PacketReady].get()));
-
-            device_state = DeviceState::Initialized;
         };
 
         void OnPacketReady() const {
             UINT32 num_frames = 0;
-            BYTE *data = nullptr;
-            DWORD flags;
-            UINT64 dev_pos = 0;
-            UINT64 qpc_pos = 0;
 
             // Every time this routine runs, we need to read ALL the packets
             // that are now available;
-            while (SUCCEEDED(capture_client_->GetNextPacketSize(&num_frames)) && num_frames > 0) {
+            while (THROW_IF_FAILED(capture_client_->GetNextPacketSize(&num_frames))
+                   && num_frames > 0) {
+                BYTE *data = nullptr;
+                DWORD flags;
                 THROW_IF_FAILED(
-                      capture_client_->GetBuffer(&data, &num_frames, &flags, &dev_pos, &qpc_pos)
+                      capture_client_->GetBuffer(&data, &num_frames, &flags, nullptr, nullptr)
                 );
 
-                // Write to callback
-                if (device_state != DeviceState::Stopping) {
+                if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT)) {
                     callback_(
                           std::span<S>(reinterpret_cast<S *>(data), num_frames * format_.nChannels)
                     );
+                } else {
+                    SPDLOG_DEBUG("[{}] silent packet", GetCurrentThreadId());
+                }
+
+                if (flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) {
+                    SPDLOG_WARN("[{}] discontinuity packet", GetCurrentThreadId());
+                }
+
+                if (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR) {
+                    SPDLOG_WARN("[{}] timestamp error packet", GetCurrentThreadId());
                 }
 
                 THROW_IF_FAILED(capture_client_->ReleaseBuffer(num_frames));
             }
-        }
-
-        HRESULT SetDeviceErrorIfFailed(const HRESULT errorCode) {
-            if (FAILED(errorCode)) {
-                device_state = DeviceState::Error;
-            }
-            return errorCode;
         }
 
         void Capture() {
@@ -225,7 +220,8 @@ namespace recorder::audio::windows {
             THROW_IF_FAILED(client_->Start());
 
             SPDLOG_TRACE("[{}] while...", GetCurrentThreadId());
-            while (device_state != DeviceState::Stopping) {
+            auto stopping = false;
+            while (!stopping) {
                 auto event_id = WaitForMultipleObjects(
                       CaptureEvents::Count, events_[0].addressof(), FALSE, INFINITE
                 );
@@ -237,7 +233,7 @@ namespace recorder::audio::windows {
                         OnPacketReady();
                         break;
                     case CaptureEvents::Shutdown:
-                        device_state = DeviceState::Stopping;
+                        stopping = true;
                         break;
                     default:
                         throw std::runtime_error("Unexpected event_id");
@@ -260,12 +256,12 @@ namespace recorder::audio::windows {
             SPDLOG_DEBUG("{} tid = {}", Describe(), GetCurrentThreadId());
             try {
                 Capture();
-            } catch (const wil::ResultException &e) {
-                spdlog::error("Capture exception: {}", e.what());
-                device_state = DeviceState::Error;
-            } catch (const std::exception &e) {
-                spdlog::error("Capture exception: {}", e.what());
-                device_state = DeviceState::Error;
+            } catch (wil::ResultException e) {
+                SPDLOG_ERROR("Capture exception: {}", e.what());
+                error_ = std::move(e);
+            } catch (std::exception e) {
+                SPDLOG_ERROR("Capture exception: {}", e.what());
+                error_ = std::move(e);
             }
         }
 
