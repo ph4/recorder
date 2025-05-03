@@ -133,8 +133,8 @@ namespace recorder {
         void StartRecording(std::optional<std::string> metadata) {
             metadata_ = metadata;
             const auto zone = current_zone();
-            zoned_time now{zone, std::chrono::time_point_cast<seconds>(system_clock::now())};
-            const auto start_time = std::chrono::time_point_cast<seconds>(now.get_sys_time());
+            zoned_time now{zone, time_point_cast<seconds>(system_clock::now())};
+            const auto start_time = time_point_cast<seconds>(now.get_sys_time());
             const auto file_name =
                   metadata ? std::format(
                                    "{:%Y-%m-%dT%H_%M_%S%z}@{}#{}.ogg", now, name_, metadata.value()
@@ -171,13 +171,11 @@ namespace recorder {
             }
             file_->file_stream->close();
 
-            const auto started =
-                  std::chrono::duration_cast<seconds>(file_->start_time.time_since_epoch()).count();
-            const auto current =
-                  std::chrono::duration_cast<seconds>(system_clock::now().time_since_epoch())
-                        .count();
+            const auto started_ts = duration_cast<seconds>(file_->start_time.time_since_epoch());
+            auto length = duration_cast<seconds>(system_clock::now() - file_->start_time);
             const auto metadata = RecordMetadata{
-                  .started = static_cast<uint64_t>(started), .length_seconds = current - started
+                  .started = static_cast<uint64_t>(started_ts.count()),
+                  .length_seconds = length.count()
             };
 
             uploader_->UploadFile(UploadFile{.file_path = file_->file_path, .metadata = metadata});
