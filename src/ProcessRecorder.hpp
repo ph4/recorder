@@ -18,7 +18,7 @@
 #include "audio/AudioSource.hpp"
 #include "audio/OggOpusEncoder.hpp"
 #include "audio/RingBuffer.hpp"
-#include "audio/SignalMonitor.hpp"
+#include "audio/WasapiAudioSource.hpp"
 
 #include "FileUploader.hpp"
 #include "Models.hpp"
@@ -34,6 +34,10 @@ using std::filesystem::path;
 using namespace std::chrono;
 
 namespace recorder {
+    enum class RecorderType {
+        Wasapi,
+    };
+
     struct File {
         std::shared_ptr<std::ofstream> file_stream;
         OggOpusEncoder opus_encoder_;
@@ -41,7 +45,20 @@ namespace recorder {
         time_point<system_clock> start_time;
     };
 
-    template <typename S> class ProcessRecorder {
+    using recorder::audio::IListener;
+    template <typename S> class ProcessRecorder : public IListener<S> {
+        struct MicListener : recorder::audio::IListener<S> {
+            ProcessRecorder<S> *const recorder_;
+            MicListener(ProcessRecorder<S> *const recorder) : recorder_(recorder) {}
+
+            void OnNewPacket(std::span<S> packet) override { recorder_->MicIn(std::span<S>()); }
+
+            void OnActive(std::optional<std::string> metadata) override {}
+            void OnInactive() override {}
+        };
+
+        MicListener mic_listener_;
+
         std::shared_ptr<Controller> controller_;
         std::string name_;
         std::shared_ptr<FileUploader> uploader_;
@@ -64,17 +81,65 @@ namespace recorder {
         bool started_ = false;
         bool stopped_ = false;
 
+        std::optional<std::string> metadata_ = std::nullopt;
+
       public:
         bool IsStarted() { return started_; }
         bool IsRecording() { return file_ != std::nullopt; }
         bool IsStopped() { return stopped_; }
 
+        void OnNewPacket(std::span<S> packet) override { this->ProcessIn(std::span<S>()); }
+
+        void OnActive(std::optional<std::string> metadata) override {
+            this->StartRecording(metadata);
+        }
+        void OnInactive() override { this->FinishRecording(); }
+
+        using SourceFactory = std::function<std::unique_ptr<ProcessAudioSource<S>>(
+              IListener<S> *listener,
+              AudioFormat format,
+              uint32_t pid,
+              bool loopback,
+              int max_silence_seconds
+        )>;
+
+        ProcessRecorder(
+              const std::shared_ptr<Controller> &controller,
+              std::string name,
+              const std::shared_ptr<FileUploader> &uploader,
+              AudioFormat format,
+              uint32_t pid,
+              RecorderType type
+        )
+            : controller_(controller),
+              name_(std::move(name)),
+              uploader_(uploader),
+              format_(format),
+              mic_listener_(this) {
+            if (type == RecorderType::Wasapi) {
+                mic_ = std::make_unique<audio::windows::WasapiAudioSource<S>>(
+                      format, &mic_listener_, 0, false, 5
+                );
+                process_ = std::make_unique<audio::windows::WasapiAudioSource<S>>(
+                      format, this, pid, true, 5
+                );
+            } else {
+                throw std::runtime_error("Not implemented");
+            }
+            encode_thread_ = std::thread(std::bind(&ProcessRecorder::EncodeLoop, this));
+        }
+
       protected:
-        void StartRecording(audio::SignalActiveData dat) {
+        void StartRecording(std::optional<std::string> metadata) {
+            metadata_ = metadata;
             const auto zone = current_zone();
             zoned_time now{zone, std::chrono::time_point_cast<seconds>(system_clock::now())};
             const auto start_time = std::chrono::time_point_cast<seconds>(now.get_sys_time());
-            const auto file_name = std::format("{:%Y-%m-%dT%H_%M_%S%z}@{}.ogg", now, name_);
+            const auto file_name =
+                  metadata ? std::format(
+                                   "{:%Y-%m-%dT%H_%M_%S%z}@{}#{}.ogg", now, name_, metadata.value()
+                             )
+                           : std::format("{:%Y-%m-%dT%H_%M_%S%z}@{}.ogg", now, name_);
             SPDLOG_INFO("Starting recording {}", file_name);
             auto file_path = uploader_->root_path() / file_name;
             const auto fs = std::make_shared<std::ofstream>(
@@ -96,7 +161,7 @@ namespace recorder {
             }
         }
 
-        void FinishRecording(audio::SignalInactiveData dat) {
+        void FinishRecording() {
             SPDLOG_INFO("Finishing recording {}", file_->file_path.string());
             // file_->opus_encoder_.Push(buffer_.remainder());
             buffer_.Clear();
@@ -191,13 +256,8 @@ namespace recorder {
                     using enum models::CommandType;
                     switch (command_type) {
                         case force_upload:
-                            this->FinishRecording(audio::SignalInactiveData{});
-                            this->StartRecording(
-                                  audio::SignalActiveData{
-                                        .timestamp = system_clock::now(),
-                                        .activationSource = "force_upload",
-                                  }
-                            );
+                            this->FinishRecording();
+                            this->StartRecording(metadata_);
                             break;
                         case kill:
                         case stop:
@@ -216,53 +276,6 @@ namespace recorder {
         }
 
       public:
-        using SourceFactory = std::function<std::unique_ptr<ProcessAudioSource<S>>(
-              AudioFormat format,
-              typename audio::AudioSource<S>::CallBackT callback,
-              const audio::SignalMonitorSilenceCallbacks &callbacks,
-              uint32_t pid,
-              bool loopback
-        )>;
-
-        ProcessRecorder(
-              const std::shared_ptr<Controller> &controller,
-              std::string name,
-              const std::shared_ptr<FileUploader> &uploader,
-              AudioFormat format,
-              uint32_t pid,
-              SourceFactory audio_source_factory
-        )
-            : controller_(controller),
-              name_(std::move(name)),
-              uploader_(uploader),
-              format_(format) {
-            auto callbacks = audio::SignalMonitorSilenceCallbacks(
-                  [this](auto p) { StartRecording(p); }, [this](auto p) { FinishRecording(p); }, 4
-            );
-            auto callbacks_null = audio::SignalMonitorSilenceCallbacks(
-                  [this](auto) {}, [this](auto) {}, std::numeric_limits<size_t>::max()
-            );
-            mic_ = audio_source_factory(
-                  format,
-                  [this](auto p) {
-                      if (this->file_) MicIn(p);
-                  },
-                  callbacks_null,
-                  0,
-                  false
-            );
-            process_ = audio_source_factory(
-                  format,
-                  [this](auto p) {
-                      if (this->file_) ProcessIn(p);
-                  },
-                  callbacks,
-                  pid,
-                  true
-            );
-            encode_thread_ = std::thread(std::bind(&ProcessRecorder::EncodeLoop, this));
-        }
-
         void Play() {
             if (!started_) {
                 mic_->Play();
@@ -274,7 +287,7 @@ namespace recorder {
         void Stop() {
             if (started_ && !stopped_) {
                 if (file_) {
-                    this->FinishRecording(audio::SignalInactiveData{});
+                    this->FinishRecording();
                 }
                 stopped_ = true;
                 mic_->Stop();

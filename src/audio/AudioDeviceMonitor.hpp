@@ -8,42 +8,85 @@
 #include <span>
 #include <thread>
 
+#include <windows.h>
+
 #include <functiondiscoverykeys.h>
 #include <mmdeviceapi.h>
+
 #include <spdlog/spdlog.h>
-#include <windows.h>
+#include <wil/com.h>
+#include <wrl/implements.h>
 
 #include "AudioSource.hpp"
 
 using namespace std::chrono;
+using namespace Microsoft::WRL;
 
 namespace recorder::audio {
 
-    template <typename S> class AudioDeviceMonitor : public IMMNotificationClient {
+    struct DeviceChangeListener
+        : public RuntimeClass<RuntimeClassFlags<ClassicCom>, FtmBase, IMMNotificationClient> {
+        std::function<void()> callback;
+
+        DeviceChangeListener(std::function<void()> callback) : callback(callback) {}
+
+        // IMMNotificationClient Methods
+        HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR deviceId, DWORD newState) override {
+            SPDLOG_DEBUG("OnDeviceStateChanged");
+            callback();
+            return S_OK;
+        }
+
+        HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR deviceId) override {
+            SPDLOG_DEBUG("OnDeviceAdded");
+            callback();
+            return S_OK;
+        }
+
+        HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR deviceId) override {
+            SPDLOG_DEBUG("OnDeviceRemoved");
+            callback();
+            return S_OK;
+        }
+
+        HRESULT STDMETHODCALLTYPE
+        OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR deviceId) override {
+            SPDLOG_DEBUG("OnDefaultDeviceChanged");
+            callback();
+            return S_OK;
+        }
+
+        HRESULT STDMETHODCALLTYPE
+        OnPropertyValueChanged(LPCWSTR deviceId, const PROPERTYKEY key) override {
+            return S_OK;
+        }
+    };
+
+    template <typename S> class AudioDeviceMonitor {
+      public:
+        using CallBackT = std::function<void(std::span<S>)>;
+
       private:
+        DeviceChangeListener notification_callback;
         std::atomic<bool> has_active_device;
-        IMMDeviceEnumerator* pEnumerator;
+        wil::com_ptr<IMMDeviceEnumerator> enumerator;
         AudioFormat format;
-        typename AudioSource<S>::CallBackT callback;
+        IListener<S>* listener;
         std::thread silent_thread;
         bool running;
 
       public:
-        AudioDeviceMonitor(AudioFormat format, typename AudioSource<S>::CallBackT cb)
-            : has_active_device(false),
-              pEnumerator(nullptr),
+        AudioDeviceMonitor(AudioFormat format, IListener<S>* listener)
+            : notification_callback([this]() { UpdateActiveDeviceStatus(); }),
+              has_active_device(false),
               format(format),
-              callback(cb),
+              listener(listener),
               running(true) {
             CoCreateInstance(
-                  __uuidof(MMDeviceEnumerator),
-                  nullptr,
-                  CLSCTX_ALL,
-                  __uuidof(IMMDeviceEnumerator),
-                  (void**)&pEnumerator
+                  __uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(enumerator.put())
             );
-            if (pEnumerator) {
-                pEnumerator->RegisterEndpointNotificationCallback(this);
+            if (enumerator) {
+                enumerator->RegisterEndpointNotificationCallback(&notification_callback);
                 UpdateActiveDeviceStatus();
             }
 
@@ -55,12 +98,12 @@ namespace recorder::audio {
             running = false;
             if (silent_thread.joinable()) silent_thread.join();
 
-            if (pEnumerator) {
-                pEnumerator->UnregisterEndpointNotificationCallback(this);
-                pEnumerator->Release();
+            if (enumerator) {
+                enumerator->UnregisterEndpointNotificationCallback(&notification_callback);
             }
         }
 
+      private:
         bool IsActiveDevicePresent() const { return has_active_device.load(); }
 
         // Checks if there are any active recording devices
@@ -68,7 +111,7 @@ namespace recorder::audio {
             IMMDeviceCollection* pCollection = nullptr;
             UINT count = 0;
             if (SUCCEEDED(
-                      pEnumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &pCollection)
+                      enumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &pCollection)
                 )) {
                 pCollection->GetCount(&count);
                 pCollection->Release();
@@ -90,60 +133,12 @@ namespace recorder::audio {
                 auto start_time = high_resolution_clock::now();
                 if (!IsActiveDevicePresent()) {
                     SPDLOG_TRACE("Calling callback with silence");
-                    callback(span);
+                    listener->OnNewPacket(span);
                 }
                 std::this_thread::sleep_for(
                       cycle_size - (high_resolution_clock::now() - start_time)
                 );
             }
-        }
-
-        // IUnknown Methods
-        HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppvObject) override {
-            if (riid == IID_IUnknown || riid == __uuidof(IMMNotificationClient)) {
-                *ppvObject = static_cast<IMMNotificationClient*>(this);
-                AddRef();
-                return S_OK;
-            }
-            *ppvObject = nullptr;
-            return E_NOINTERFACE;
-        }
-
-        ULONG STDMETHODCALLTYPE AddRef() override { return 1; }
-        ULONG STDMETHODCALLTYPE Release() override { return 1; }
-
-        // IMMNotificationClient Methods
-        HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR deviceId, DWORD newState) override {
-            SPDLOG_DEBUG("OnDeviceStateChanged");
-            UpdateActiveDeviceStatus();
-            return S_OK;
-        }
-
-        HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR deviceId) override {
-            SPDLOG_DEBUG("OnDeviceAdded");
-            UpdateActiveDeviceStatus();
-            return S_OK;
-        }
-
-        HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR deviceId) override {
-            SPDLOG_DEBUG("OnDeviceRemoved");
-            UpdateActiveDeviceStatus();
-            return S_OK;
-        }
-
-        HRESULT STDMETHODCALLTYPE
-        OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR deviceId) override {
-            SPDLOG_DEBUG("OnDefaultDeviceChanged");
-            if (flow == eCapture) {
-                SPDLOG_DEBUG("flow == eCapture");
-                UpdateActiveDeviceStatus();
-            }
-            return S_OK;
-        }
-
-        HRESULT STDMETHODCALLTYPE
-        OnPropertyValueChanged(LPCWSTR deviceId, const PROPERTYKEY key) override {
-            return S_OK;
         }
     };
 

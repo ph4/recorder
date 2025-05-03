@@ -30,7 +30,7 @@ AllowAllArgumentsOnNextLine: true
 AlignAfterOpenBracket: BlockIndent
 ContinuationIndentWidth: 6
 
-AllowShortIfStatementsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: WithoutElse
 BracedInitializerIndentWidth: 6
 BreakBinaryOperations: RespectPrecedence
 BreakBeforeBinaryOperators: NonAssignment

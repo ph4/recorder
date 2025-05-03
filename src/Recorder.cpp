@@ -15,7 +15,7 @@
 
 #include "Controller.hpp"
 #include "Models.hpp"
-#include "audio/WinAudioSource.hpp"
+#include "audio/WasapiAudioSource.hpp"
 
 using namespace std::chrono;
 namespace rv = std::ranges::views;
@@ -84,9 +84,6 @@ namespace recorder {
               .channels = 1,
               .sampleRate = 16000,
         };
-        auto audio_source_factory = [](auto fmt, auto cb, auto scb, auto pid, auto lb) {
-            return std::make_unique<audio::windows::WinAudioSource<int16_t>>(fmt, cb, scb, pid, lb);
-        };
 
         auto recorder = std::make_unique<ProcessRecorder<int16_t>>(
               this->controller_,
@@ -94,7 +91,7 @@ namespace recorder {
               this->uploader_,
               audio_format,
               pi.process_id(),
-              audio_source_factory
+              RecorderType::Wasapi
         );
         SPDLOG_INFO("Starting listening on {}", pi.process_name());
         recorder->Play();

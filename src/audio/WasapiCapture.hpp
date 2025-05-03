@@ -25,6 +25,7 @@
 #include "util.hpp"
 
 using namespace Microsoft::WRL;
+// using namespace recorder::audio;
 
 namespace recorder::audio::windows {
     struct CompletionHandler
@@ -60,7 +61,7 @@ namespace recorder::audio::windows {
             Count,
         };
     };
-    template <typename S> class WinCapture {
+    template <typename S> class WasapiCapture {
       public:
         enum class DeviceState {
             Uninitialized,
@@ -78,7 +79,8 @@ namespace recorder::audio::windows {
 
         wil::unique_couninitialize_call couninit{wil::CoInitializeEx()};
 
-        CallBackT callback_;
+        // CallBackT callback_;
+        IBasicListener<S> *listener_;
         const uint32_t pid_;
         const bool is_loopback_;
         const WAVEFORMATEX format_{};
@@ -92,9 +94,9 @@ namespace recorder::audio::windows {
         std::thread capture_thread_;
 
       public:
-        WinCapture(const WinCapture &) = delete;
+        WasapiCapture(const WasapiCapture &) = delete;
 
-        WinCapture &operator=(const WinCapture &) = delete;
+        WasapiCapture &operator=(const WasapiCapture &) = delete;
 
         std::optional<std::exception> GetError() const { return error_; }
 
@@ -181,8 +183,8 @@ namespace recorder::audio::windows {
 
             // Every time this routine runs, we need to read ALL the packets
             // that are now available;
-            while (THROW_IF_FAILED(capture_client_->GetNextPacketSize(&num_frames))
-                   && num_frames > 0) {
+            THROW_IF_FAILED(capture_client_->GetNextPacketSize(&num_frames));
+            while (num_frames > 0) {
                 BYTE *data = nullptr;
                 DWORD flags;
                 THROW_IF_FAILED(
@@ -190,7 +192,7 @@ namespace recorder::audio::windows {
                 );
 
                 if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT)) {
-                    callback_(
+                    listener_->OnNewPacket(
                           std::span<S>(reinterpret_cast<S *>(data), num_frames * format_.nChannels)
                     );
                 } else {
@@ -206,6 +208,7 @@ namespace recorder::audio::windows {
                 }
 
                 THROW_IF_FAILED(capture_client_->ReleaseBuffer(num_frames));
+                THROW_IF_FAILED(capture_client_->GetNextPacketSize(&num_frames));
             }
         }
 
@@ -266,16 +269,17 @@ namespace recorder::audio::windows {
         }
 
       public:
-        WinCapture(
+        WasapiCapture(
               const recorder::audio::AudioFormat format,
               const uint32_t buffer_size_ns,
-              const CallBackT &callback,
+              // const CallBackT &callback,
+              IBasicListener<S> *listener,
               const DWORD pid,
               bool is_loopback
         )
             : pid_(pid),
               is_loopback_(is_loopback),
-              callback_(callback),
+              listener_(listener),
               buffer_size_ns_(buffer_size_ns),
               format_({
                     .wFormatTag = WAVE_FORMAT_PCM,
@@ -293,10 +297,10 @@ namespace recorder::audio::windows {
                 throw std::invalid_argument("pid is invalid");
             }
 
-            capture_thread_ = std::thread(&WinCapture::CaptureSafe, this);
+            capture_thread_ = std::thread(&WasapiCapture::CaptureSafe, this);
         }
 
-        ~WinCapture() {
+        ~WasapiCapture() {
             events_[CaptureEvents::Shutdown].SetEvent();
             capture_thread_.join();
         }

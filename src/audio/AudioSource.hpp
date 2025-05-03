@@ -6,11 +6,24 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <variant>
 
 namespace recorder::audio {
+    template <typename S> class IBasicListener {
+      public:
+        virtual void OnNewPacket(std::span<S>) = 0;
+        virtual ~IBasicListener() = default;
+    };
+
+    template <typename S> class IListener : public IBasicListener<S> {
+      public:
+        virtual void OnInactive() = 0;
+        virtual void OnActive(std::optional<std::string> metadata = std::nullopt) = 0;
+        virtual ~IListener() = default;
+    };
     struct AudioFormat {
         uint16_t channels;
         uint32_t sampleRate;

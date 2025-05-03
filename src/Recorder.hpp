@@ -10,7 +10,7 @@
 #include "Controller.hpp"
 
 #include "audio/AudioSource.hpp"
-#include "audio/WinAudioSource.hpp"
+#include "audio/WasapiAudioSource.hpp"
 
 #include "Api.hpp"
 #include "FileUploader.hpp"
