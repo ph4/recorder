@@ -22,6 +22,7 @@
 
 #include "FileUploader.hpp"
 #include "Models.hpp"
+#include "audio/ActivityMonitor.hpp"
 
 using recorder::audio::AudioFormat;
 using recorder::audio::OggOpusEncoder;
@@ -36,6 +37,7 @@ using namespace std::chrono;
 namespace recorder {
 enum class RecorderType {
     Wasapi,
+    WasapiWhatsapp,
 };
 
 struct File {
@@ -45,24 +47,27 @@ struct File {
     time_point<system_clock> start_time;
 };
 
-using recorder::audio::IListener;
-template <typename S> class ProcessRecorder : public IListener<S> {
-    struct MicListener : recorder::audio::IListener<S> {
+using recorder::audio::IActivityListener;
+using recorder::audio::IActivityMonitor;
+using recorder::audio::IAudioSink;
+template <typename S> class ProcessRecorder
+    : public IAudioSink<S>
+    , public IActivityListener<S> {
+    struct MicSink : public IAudioSink<S> {
         ProcessRecorder<S> *const recorder_;
-        MicListener(ProcessRecorder<S> *const recorder) : recorder_(recorder) {}
+        MicSink(ProcessRecorder<S> *const recorder) : recorder_(recorder) {}
 
-        void OnNewPacket(std::span<S> packet) override { recorder_->MicIn(std::span<S>()); }
-
-        void OnActive(std::optional<std::string> metadata) override {}
-        void OnInactive() override {}
+        void OnNewPacket(std::span<S> packet) override { recorder_->MicIn(packet); }
     };
 
-    MicListener mic_listener_;
+    MicSink mic_sink_;
 
     std::shared_ptr<Controller> controller_;
     std::string name_;
     std::shared_ptr<FileUploader> uploader_;
     AudioFormat format_;
+
+    std::unique_ptr<audio::ISignalActivityMonitor<S>> activity_monitor_ = nullptr;
 
     std::mutex write_mutex_{};
     std::unique_ptr<ProcessAudioSource<S>> mic_;
@@ -88,18 +93,10 @@ public:
     bool IsRecording() { return file_ != std::nullopt; }
     bool IsStopped() { return stopped_; }
 
-    void OnNewPacket(std::span<S> packet) override { this->ProcessIn(std::span<S>()); }
+    void OnNewPacket(std::span<S> packet) override { this->ProcessIn(packet); }
 
     void OnActive(std::optional<std::string> metadata) override { this->StartRecording(metadata); }
     void OnInactive() override { this->FinishRecording(); }
-
-    using SourceFactory = std::function<std::unique_ptr<ProcessAudioSource<S>>(
-          IListener<S> *listener,
-          AudioFormat format,
-          uint32_t pid,
-          bool loopback,
-          int max_silence_seconds
-    )>;
 
     ProcessRecorder(
           const std::shared_ptr<Controller> &controller,
@@ -113,14 +110,24 @@ public:
           name_(std::move(name)),
           uploader_(uploader),
           format_(format),
-          mic_listener_(this) {
+          mic_sink_(this) {
+        // TODO: Make max_silence configurable
         if (type == RecorderType::Wasapi) {
+            activity_monitor_ =
+                  std::make_unique<recorder::audio::ActivityMonitorSilence<S>>(this, 5, format);
             mic_ = std::make_unique<audio::windows::WasapiAudioSource<S>>(
-                  format, &mic_listener_, 0, false, 5
+                  format, &mic_sink_, 0, false
             );
-            process_ = std::make_unique<audio::windows::WasapiAudioSource<S>>(
-                  format, this, pid, true, 5
+            process_ =
+                  std::make_unique<audio::windows::WasapiAudioSource<S>>(format, this, pid, true);
+        } else if (type == RecorderType::WasapiWhatsapp) {
+            activity_monitor_ =
+                  std::make_unique<recorder::audio::ActivityMonitorWhatsapp<S>>(this, format, 5);
+            mic_ = std::make_unique<audio::windows::WasapiAudioSource<S>>(
+                  format, &mic_sink_, 0, false
             );
+            process_ =
+                  std::make_unique<audio::windows::WasapiAudioSource<S>>(format, this, 0, true);
         } else {
             throw std::runtime_error("Not implemented");
         }
@@ -196,6 +203,9 @@ protected:
     }
 
     void ProcessIn(std::span<S> data) {
+        if (activity_monitor_) {
+            activity_monitor_->OnNewPacket(data);
+        }
         if (!file_) {
             PostIdle();
             return;

@@ -62,7 +62,7 @@ struct DeviceChangeListener
     }
 };
 
-template <typename S> class AudioDeviceMonitor {
+template <typename S> class InactiveAudioDeviceHandler {
 public:
     using CallBackT = std::function<void(std::span<S>)>;
 
@@ -71,16 +71,16 @@ private:
     std::atomic<bool> has_active_device;
     wil::com_ptr<IMMDeviceEnumerator> enumerator;
     AudioFormat format;
-    IListener<S>* listener;
+    IAudioSink<S>* sink;
     std::thread silent_thread;
     bool running;
 
 public:
-    AudioDeviceMonitor(AudioFormat format, IListener<S>* listener)
+    InactiveAudioDeviceHandler(AudioFormat format, IAudioSink<S>* sink)
         : notification_callback([this]() { UpdateActiveDeviceStatus(); }),
           has_active_device(false),
           format(format),
-          listener(listener),
+          sink(sink),
           running(true) {
         CoCreateInstance(
               __uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(enumerator.put())
@@ -94,7 +94,7 @@ public:
         silent_thread = std::thread([this]() { GenerateSilcence(); });
     }
 
-    virtual ~AudioDeviceMonitor() {
+    virtual ~InactiveAudioDeviceHandler() {
         running = false;
         if (silent_thread.joinable()) silent_thread.join();
 
@@ -131,7 +131,7 @@ private:
             auto start_time = high_resolution_clock::now();
             if (!IsActiveDevicePresent()) {
                 SPDLOG_TRACE("Calling callback with silence");
-                listener->OnNewPacket(span);
+                sink->OnNewPacket(span);
             }
             std::this_thread::sleep_for(cycle_size - (high_resolution_clock::now() - start_time));
         }

@@ -4,7 +4,7 @@
 #ifndef WIN_AUDIO_SOURCE_H
 #define WIN_AUDIO_SOURCE_H
 
-#include <algorithm>
+#include <chrono>
 #include <memory>
 
 #include "WasapiCapture.hpp"
@@ -14,72 +14,67 @@
 
 namespace recorder::audio::windows {
 using namespace recorder::audio;
-template <typename S> class ActivityMonitorSilence : public IBasicListener<S> {
-    size_t frames_silent_ = std::numeric_limits<size_t>::max();
-    bool active_ = false;
-    int max_silence_seconds_;
-    const audio::AudioFormat format_;
-    IListener<S> *const listener_ = nullptr;
-    const size_t samples_per_sec = format_.sampleRate * format_.channels;
+using namespace std::chrono;
 
-public:
-    ActivityMonitorSilence(
-          IListener<S> *listener, int max_silence_seconds, audio::AudioFormat format
-    )
-        : listener_(listener), max_silence_seconds_(max_silence_seconds), format_(format) {}
-    void OnNewPacket(std::span<S> packet) override {
-        // Windows sometimes has samples with value of +-1 on silent streams
-        auto has_signal =
-              std::any_of(packet.begin(), packet.end(), [&](auto s) { return std::abs(s) > 1; });
-        if (active_ && has_signal) {
-            frames_silent_ = 0;
-        } else if (!active_ && has_signal) {
-            SPDLOG_DEBUG("+Active");
-            active_ = true;
-            frames_silent_ = 0;
-            listener_->OnActive();
-        } else if (active_ && !has_signal) {
-            frames_silent_ += packet.size();
-            if (frames_silent_ > samples_per_sec * max_silence_seconds_) {
-                SPDLOG_DEBUG("-Active");
-                active_ = false;
-                listener_->OnInactive();
-            }
-        }
-        listener_->OnNewPacket(packet);
-    };
-};
+template <typename S> class WasapiAudioSource
+    : public ProcessAudioSource<S>
+    , public IAudioSink<S> {
+    std::unique_ptr<InactiveAudioDeviceHandler<S>> inactive_device_handler_ = nullptr;
+    IAudioSink<S> *sink_;
+    AudioFormat format_;
 
-template <typename S> class WasapiAudioSource : public ProcessAudioSource<S> {
-    std::unique_ptr<AudioDeviceMonitor<S>> device_monitor_ = nullptr;
-    ActivityMonitorSilence<S> activity_monitor_;
-    const IListener<S> *listener_;
+    std::mutex time_mutex_;
+    steady_clock::time_point last_signal_ = steady_clock::now();
+    std::thread no_signal_thread_;
 
     std::unique_ptr<WasapiCapture<S>> capture_;
     using ProcessAudioSource<S>::ProcessAudioSource;
 
 public:
-    explicit WasapiAudioSource(
-          AudioFormat format,
-          // typename AudioSource<S>::CallBackT callback,
-          IListener<S> *listener,
-          uint32_t pid,
-          bool loopback,
-          int max_silence_seconds
-    )
+    explicit WasapiAudioSource(AudioFormat format, IAudioSink<S> *sink, uint32_t pid, bool loopback)
         : ProcessAudioSource<S>(),
-          listener_(listener),
-          activity_monitor_(listener, max_silence_seconds, format),
-          capture_(
-                std::make_unique<WasapiCapture<S>>(
-                      format, 200000, &activity_monitor_, pid, loopback
-                )
-          ) {
+          sink_(sink),
+          format_(format),
+          capture_(std::make_unique<WasapiCapture<S>>(format, 200000, this, pid, loopback)) {
         if (!loopback && pid != 0) {
             throw std::invalid_argument("pid is invalid");
         }
         if (loopback) {
-            device_monitor_ = std::make_unique<AudioDeviceMonitor<S>>(format, listener);
+            inactive_device_handler_ =
+                  std::make_unique<InactiveAudioDeviceHandler<S>>(format, sink);
+            no_signal_thread_ = std::thread(&WasapiAudioSource::NoSignalWathcer, this);
+        }
+    }
+
+    void NoSignalWathcer() {
+        while (true) {
+            auto now = steady_clock::now();
+            duration<double> delta;
+            {
+                std::lock_guard guard(time_mutex_);
+                delta = now - last_signal_;
+            }
+            if (delta > std::chrono::milliseconds(200)) {
+                auto milliseconds =
+                      std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
+                auto packet = std::vector<S>(
+                      format_.channels * format_.sampleRate * 1000 / milliseconds, 0
+                );
+                sink_->OnNewPacket(std::span<S>(packet));
+                {
+                    std::lock_guard guard(time_mutex_);
+                    last_signal_ = now;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+
+    void OnNewPacket(std::span<S> packet) override {
+        sink_->OnNewPacket(packet);
+        {
+            std::lock_guard guard(time_mutex_);
+            last_signal_ = std::chrono::steady_clock::now();
         }
     }
 
@@ -102,8 +97,8 @@ public:
     void Play() override {};
 
     void Stop() override {
-        if (device_monitor_) {
-            device_monitor_.release();
+        if (inactive_device_handler_) {
+            inactive_device_handler_.release();
         }
         if (capture_) {
             capture_.release();
@@ -112,7 +107,11 @@ public:
 
     uint32_t GetPid() override { throw std::runtime_error("Not implemented"); }
 
-    ~WasapiAudioSource() override {}
+    ~WasapiAudioSource() override {
+        if (no_signal_thread_.joinable()) {
+            no_signal_thread_.join();
+        }
+    }
 };
 
 template class WasapiAudioSource<int16_t>;

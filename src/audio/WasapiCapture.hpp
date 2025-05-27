@@ -77,7 +77,7 @@ private:
     wil::unique_couninitialize_call couninit{wil::CoInitializeEx()};
 
     // CallBackT callback_;
-    IBasicListener<S> *listener_;
+    IAudioSink<S> *listener_;
     const uint32_t pid_;
     const bool is_loopback_;
     const WAVEFORMATEX format_{};
@@ -207,13 +207,10 @@ private:
         SPDLOG_TRACE("[{}] ActivateAudioInterface...", GetCurrentThreadId());
         ActivateAudioInterface();
 
-        SPDLOG_TRACE("[{}] SetThreadPriority...", GetCurrentThreadId());
         SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
-        SPDLOG_TRACE("[{}] Client::Start...", GetCurrentThreadId());
         THROW_IF_FAILED(client_->Start());
 
-        SPDLOG_TRACE("[{}] while...", GetCurrentThreadId());
         auto stopping = false;
         while (!stopping) {
             auto event_id = WaitForMultipleObjects(
@@ -264,7 +261,7 @@ public:
           const recorder::audio::AudioFormat format,
           const uint32_t buffer_size_ns,
           // const CallBackT &callback,
-          IBasicListener<S> *listener,
+          IAudioSink<S> *listener,
           const DWORD pid,
           bool is_loopback
     )

@@ -12,18 +12,19 @@
 #include <variant>
 
 namespace recorder::audio {
-template <typename S> class IBasicListener {
+template <typename S> class IAudioSink {
 public:
     virtual void OnNewPacket(std::span<S>) = 0;
-    virtual ~IBasicListener() = default;
+    virtual ~IAudioSink() = default;
 };
 
-template <typename S> class IListener : public IBasicListener<S> {
+template <typename S> class IActivityListener {
 public:
     virtual void OnInactive() = 0;
     virtual void OnActive(std::optional<std::string> metadata = std::nullopt) = 0;
-    virtual ~IListener() = default;
+    virtual ~IActivityListener() = default;
 };
+
 struct AudioFormat {
     uint16_t channels;
     uint32_t sampleRate;

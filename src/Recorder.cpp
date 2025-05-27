@@ -15,7 +15,6 @@
 
 #include "Controller.hpp"
 #include "Models.hpp"
-#include "audio/WasapiAudioSource.hpp"
 
 using namespace std::chrono;
 namespace rv = std::ranges::views;
@@ -84,13 +83,12 @@ void Recorder::StartListeningProcess(const ProcessInfo &pi) {
           .sampleRate = 16000,
     };
 
+    // TODO: kostill
+    auto type =
+          pi.process_name() == "WhatsApp.exe" ? RecorderType::WasapiWhatsapp : RecorderType::Wasapi;
+
     auto recorder = std::make_unique<ProcessRecorder<int16_t>>(
-          this->controller_,
-          pi.process_name(),
-          this->uploader_,
-          audio_format,
-          pi.process_id(),
-          RecorderType::Wasapi
+          this->controller_, pi.process_name(), this->uploader_, audio_format, pi.process_id(), type
     );
     SPDLOG_INFO("Starting listening on {}", pi.process_name());
     recorder->Play();

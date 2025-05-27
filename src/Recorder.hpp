@@ -42,6 +42,8 @@ class Recorder {
 
     void StartListeningProcess(const ProcessInfo &pi);
 
+    void StartListeningWhatsapp();
+
     void AddNewProcesses();
 
     void RemoveStoppedProcesses();
