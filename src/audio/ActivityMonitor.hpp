@@ -83,7 +83,6 @@ template <typename S> class ActivityMonitorWhatsapp : public ISignalActivityMoni
         wil::com_ptr<IAudioSessionManager2> sessionManager;
         wil::com_ptr<IAudioSessionEnumerator> sessionEnumerator;
 
-        CoInitialize(nullptr);
         THROW_IF_FAILED(CoCreateInstance(
               __uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator)
         ));
@@ -117,7 +116,6 @@ template <typename S> class ActivityMonitorWhatsapp : public ISignalActivityMoni
             }
         }
 
-        CoUninitialize();
         return nullptr;
     }
 
@@ -135,7 +133,17 @@ public:
     void OnNewPacket(std::span<S> packet) override {
         float peak = 0;
         float threshold = 0.01;
-        meter_->GetPeakValue(&peak);
+        auto hr = meter_->GetPeakValue(&peak);
+        if (FAILED(hr)) {
+            if (hr == AUDCLNT_E_DEVICE_INVALIDATED) {
+                SPDLOG_WARN("AudioMeterInformation device invalidated");
+                meter_ = GetAudioMeterByAppName(L"WhatsApp.exe");
+            }
+            hr = meter_->GetPeakValue(&peak);
+            if (FAILED(hr)) {
+                throw std::runtime_error("GetPeakValue failed");
+            }
+        }
         if (!active_ && peak > threshold) {
             active_ = true;
             silent_for_seconds_ = 0;

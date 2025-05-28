@@ -69,6 +69,7 @@ int main(const int argc, char const *argv[]) {
     setup_logger();
     recorder::debug::print_all_endpoints();
 #endif
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
     auto uuid = get_uuid();
     SPDLOG_INFO("Machine UUID = {}", uuid);
@@ -93,6 +94,7 @@ int main(const int argc, char const *argv[]) {
 
     recorder_thread.join();
 
+    CoUninitialize();
     std::cout << "Goodbye!" << std::endl;
 
     return 0;

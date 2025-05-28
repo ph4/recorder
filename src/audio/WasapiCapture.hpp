@@ -186,8 +186,6 @@ private:
                 listener_->OnNewPacket(
                       std::span<S>(reinterpret_cast<S *>(data), num_frames * format_.nChannels)
                 );
-            } else {
-                SPDLOG_DEBUG("[{}] silent packet", GetCurrentThreadId());
             }
 
             if (flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) {
