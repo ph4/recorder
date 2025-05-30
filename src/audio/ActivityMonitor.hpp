@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <stdexcept>
 
 #include <windows.h>
@@ -13,6 +14,9 @@
 #include <psapi.h>
 
 #include "AudioSource.hpp"
+
+using namespace std::chrono;
+using namespace std::chrono_literals;
 namespace recorder::audio {
 
 template <typename S, bool SignalAware> class IActivityMonitor {};
@@ -65,6 +69,7 @@ template <typename S> class ActivityMonitorWhatsapp : public ISignalActivityMoni
     bool active_ = false;
     int max_silence_seconds_ = 5;
     double silent_for_seconds_ = 0;
+    steady_clock::time_point last_refresh_;
 
     std::wstring GetProcessName(DWORD pid) {
         WCHAR name[MAX_PATH] = {};
@@ -119,6 +124,14 @@ template <typename S> class ActivityMonitorWhatsapp : public ISignalActivityMoni
         return nullptr;
     }
 
+    void Refresh() {
+        auto now = steady_clock::now();
+        if (now > last_refresh_ + 10min) {
+            meter_ = GetAudioMeterByAppName(L"WhatsApp.exe");
+            last_refresh_ = now;
+        }
+    }
+
 public:
     ActivityMonitorWhatsapp(
           IActivityListener<S> *listener, AudioFormat format, int max_silence_seconds
@@ -133,8 +146,11 @@ public:
     void OnNewPacket(std::span<S> packet) override {
         float peak = 0;
         float threshold = 0.01;
+
+        Refresh(); // Periodically refresh meter_ to avoid it becoming invalid
+
         auto hr = meter_->GetPeakValue(&peak);
-        if (FAILED(hr)) {
+        if (FAILED(hr)) [[unlikely]] {
             if (hr == AUDCLNT_E_DEVICE_INVALIDATED) {
                 SPDLOG_WARN("AudioMeterInformation device invalidated");
                 meter_ = GetAudioMeterByAppName(L"WhatsApp.exe");
