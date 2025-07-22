@@ -38,7 +38,7 @@ class Recorder {
 
     void Register();
 
-    void StopAll();
+    void RemoveAll();
 
     void StartListeningProcess(const ProcessInfo &pi);
 

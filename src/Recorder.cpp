@@ -68,12 +68,9 @@ void Recorder::Register() {
     }
 }
 
-void Recorder::StopAll() {
-    SPDLOG_TRACE("Recorder::StopAll()");
-    for (const auto &recorder : this->recorders_ | std::views::values) {
-        const auto &rec = recorder->recorder;
-        rec->Stop();
-    }
+void Recorder::RemoveAll() {
+    SPDLOG_TRACE("Recorder::RemoveAll()");
+    recorders_.clear();
 }
 
 void Recorder::StartListeningProcess(const ProcessInfo &pi) {
@@ -91,7 +88,6 @@ void Recorder::StartListeningProcess(const ProcessInfo &pi) {
           this->controller_, pi.process_name(), this->uploader_, audio_format, pi.process_id(), type
     );
     SPDLOG_INFO("Starting listening on {}", pi.process_name());
-    recorder->Play();
     auto ri = std::make_unique<RecorderItem>(std::move(recorder), pi);
     this->recorders_.emplace(pi.process_name(), std::move(ri));
 }
@@ -115,8 +111,7 @@ void Recorder::RemoveStoppedProcesses() {
     auto to_remove = std::vector<std::string>();
     for (const auto &[k, v] : this->recorders_) {
         if (!v->process.isAlive()) {
-            SPDLOG_INFO("Stopping recording on {}", v->process.process_name());
-            v->recorder->Stop();
+            SPDLOG_INFO("Removing recorder {}", v->process.process_name());
             to_remove.push_back(k);
         }
     }
@@ -133,7 +128,7 @@ bool Recorder::ListenProcesses() {
             case reload:
             case stop:
             case kill: {
-                StopAll();
+                RemoveAll();
                 if (cmd == reload) {
                     return true;
                 }

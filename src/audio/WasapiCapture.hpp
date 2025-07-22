@@ -39,10 +39,12 @@ struct CompletionHandler
 
     CompletionHandler() { event_finished_.create(); }
 
-    STDMETHOD(ActivateCompleted)(IActivateAudioInterfaceAsyncOperation *activateOperation
+    STDMETHOD(ActivateCompleted)(
+          IActivateAudioInterfaceAsyncOperation *activateOperation
     ) override {
         auto set_finished = event_finished_.SetEvent_scope_exit();
-        RETURN_IF_FAILED(activateOperation->GetActivateResult(&activate_hr_, client_.put_unknown())
+        RETURN_IF_FAILED(
+              activateOperation->GetActivateResult(&activate_hr_, client_.put_unknown())
         );
         if (FAILED(activate_hr_)) {
             SPDLOG_ERROR("ActivateAudioInterfaceAsync failed: {}", hresult_to_string(activate_hr_));
@@ -179,7 +181,8 @@ private:
         while (num_frames > 0) {
             BYTE *data = nullptr;
             DWORD flags;
-            THROW_IF_FAILED(capture_client_->GetBuffer(&data, &num_frames, &flags, nullptr, nullptr)
+            THROW_IF_FAILED(
+                  capture_client_->GetBuffer(&data, &num_frames, &flags, nullptr, nullptr)
             );
 
             if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT)) {

@@ -35,6 +35,7 @@ using std::filesystem::path;
 using namespace std::chrono;
 
 namespace recorder {
+
 enum class RecorderType {
     Wasapi,
     WasapiWhatsapp,
@@ -83,13 +84,11 @@ template <typename S> class ProcessRecorder
     std::optional<File> file_ = std::nullopt;
     InterleaveRingBuffer<S, 2, 480, 50> buffer_{};
 
-    bool started_ = false;
     bool stopped_ = false;
 
     std::optional<std::string> metadata_ = std::nullopt;
 
 public:
-    bool IsStarted() { return started_; }
     bool IsRecording() { return file_ != std::nullopt; }
     bool IsStopped() { return stopped_; }
 
@@ -221,13 +220,19 @@ protected:
     }
     void PostIdle() {
         // Notify encode because it handles status as well
-        encode_cond_ = true;
+        {
+            std::lock_guard guard(encode_mutex_);
+            encode_cond_ = true;
+        }
         encode_condition_.notify_one();
     };
 
     void PostWrite() {
         // Notify encode thread that it has work to do
-        encode_cond_ = true;
+        {
+            std::lock_guard guard(encode_mutex_);
+            encode_cond_ = true;
+        }
         encode_condition_.notify_one();
     }
 
@@ -277,28 +282,21 @@ protected:
     }
 
 public:
-    void Play() {
-        if (!started_) {
-            mic_->Play();
-            process_->Play();
-            started_ = true;
-        }
-    }
-
-    void Stop() {
-        if (started_ && !stopped_) {
+    ~ProcessRecorder() {
+        if (!stopped_) {
             if (file_) {
                 this->FinishRecording();
             }
             stopped_ = true;
-            mic_->Stop();
-            process_->Stop();
+            mic_.reset();
+            process_.reset();
             if (encode_thread_.joinable()) {
                 PostWrite();
                 encode_thread_.join();
             }
         }
-    }
+    };
 };
+
 } // namespace recorder
 #endif // PROCESSRECORDER_HPP

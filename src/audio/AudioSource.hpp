@@ -35,20 +35,7 @@ public:
     using CallBackT = std::function<void(std::span<S>)>;
     virtual ~AudioSource() = default;
 
-    enum State {
-        Uninitialized,
-        Error,
-        Playing,
-        Stopped,
-    };
-
-    virtual State GetState() = 0;
-
     virtual void SetCallback(CallBackT) = 0;
-
-    virtual void Play() = 0;
-
-    virtual void Stop() = 0;
 };
 
 template <typename S> class ProcessAudioSource : public AudioSource<S> {

@@ -26,6 +26,7 @@ template <typename S> class WasapiAudioSource
     std::mutex time_mutex_;
     steady_clock::time_point last_signal_ = steady_clock::now();
     std::thread no_signal_thread_;
+    bool active_ = true;
 
     std::unique_ptr<WasapiCapture<S>> capture_;
     using ProcessAudioSource<S>::ProcessAudioSource;
@@ -47,7 +48,7 @@ public:
     }
 
     void NoSignalWathcer() {
-        while (true) {
+        while (active_) {
             auto now = steady_clock::now();
             duration<double> delta;
             {
@@ -78,36 +79,20 @@ public:
         }
     }
 
-    using State = ProcessAudioSource<S>::State;
-    State GetState() override {
-        if (capture_) {
-            if (capture_->GetError())
-                return State::Error;
-            else
-                return State::Playing;
-        } else {
-            return State::Stopped;
-        }
-    }
-
     void SetCallback(const ProcessAudioSource<S>::CallBackT cb) override {
         throw std::runtime_error("Not implemented");
     };
 
-    void Play() override {};
-
-    void Stop() override {
-        if (inactive_device_handler_) {
-            inactive_device_handler_.release();
-        }
-        if (capture_) {
-            capture_.release();
-        }
-    }
-
     uint32_t GetPid() override { throw std::runtime_error("Not implemented"); }
 
     ~WasapiAudioSource() override {
+        if (inactive_device_handler_) {
+            inactive_device_handler_.reset();
+        }
+        if (capture_) {
+            capture_.reset();
+        }
+        active_ = false;
         if (no_signal_thread_.joinable()) {
             no_signal_thread_.join();
         }
