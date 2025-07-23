@@ -15,7 +15,7 @@
 
 #include "Controller.hpp"
 
-#include "audio/AudioSource.hpp"
+#include "audio/audio_core.hpp"
 #include "audio/OggOpusEncoder.hpp"
 #include "audio/RingBuffer.hpp"
 #include "audio/WasapiAudioSource.hpp"
@@ -25,8 +25,8 @@
 #include "audio/ActivityMonitor.hpp"
 
 using recorder::audio::AudioFormat;
+using recorder::audio::IAudioSource;
 using recorder::audio::OggOpusEncoder;
-using recorder::audio::ProcessAudioSource;
 
 using recorder::models::RecordMetadata;
 
@@ -71,8 +71,8 @@ template <typename S> class ProcessRecorder
     std::unique_ptr<audio::ISignalActivityMonitor<S>> activity_monitor_ = nullptr;
 
     std::mutex write_mutex_{};
-    std::unique_ptr<ProcessAudioSource<S>> mic_;
-    std::unique_ptr<ProcessAudioSource<S>> process_;
+    std::unique_ptr<IAudioSource<S>> mic_;
+    std::unique_ptr<IAudioSource<S>> process_;
 
     std::thread encode_thread_{};
     std::condition_variable encode_condition_;

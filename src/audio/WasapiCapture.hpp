@@ -21,7 +21,7 @@
 #include <mmdeviceapi.h>
 #include <spdlog/spdlog.h>
 
-#include "AudioSource.hpp"
+#include "audio_core.hpp"
 #include "util.hpp"
 
 using namespace Microsoft::WRL;

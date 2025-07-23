@@ -17,7 +17,7 @@
 #include <wil/com.h>
 #include <wrl/implements.h>
 
-#include "AudioSource.hpp"
+#include "audio_core.hpp"
 
 using namespace std::chrono;
 using namespace Microsoft::WRL;
@@ -110,7 +110,8 @@ private:
     void UpdateActiveDeviceStatus() {
         IMMDeviceCollection* pCollection = nullptr;
         UINT count = 0;
-        if (SUCCEEDED(enumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &pCollection)
+        if (SUCCEEDED(
+                  enumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &pCollection)
             )) {
             pCollection->GetCount(&count);
             pCollection->Release();

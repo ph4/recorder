@@ -1,17 +1,16 @@
 //
 // Created by pavel on 22.03.2025.
 //
+#define INITGUID // Linker cant find guids for some reason now
 #include "Recorder.hpp"
-
-// Have to include it here so static functions compile
-#include <strsafe.h>
-#include <yyjson.h>
 
 #include <ranges>
 
 #include <spdlog/spdlog.h>
 #include <rfl/toml/load.hpp>
 #include <rfl/toml/save.hpp>
+
+#include <mmdeviceapi.h>
 
 #include "Controller.hpp"
 #include "Models.hpp"

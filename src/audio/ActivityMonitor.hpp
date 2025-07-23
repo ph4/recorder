@@ -13,7 +13,7 @@
 #include <mmdeviceapi.h>
 #include <psapi.h>
 
-#include "AudioSource.hpp"
+#include "audio_core.hpp"
 
 using namespace std::chrono;
 using namespace std::chrono_literals;

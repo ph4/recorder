@@ -7,17 +7,16 @@
 #include <chrono>
 #include <memory>
 
-#include "WasapiCapture.hpp"
-
+#include "audio_core.hpp"
 #include "AudioDeviceMonitor.hpp"
-#include "AudioSource.hpp"
+#include "WasapiCapture.hpp"
 
 namespace recorder::audio::windows {
 using namespace recorder::audio;
 using namespace std::chrono;
 
 template <typename S> class WasapiAudioSource
-    : public ProcessAudioSource<S>
+    : public IAudioSource<S>
     , public IAudioSink<S> {
     std::unique_ptr<InactiveAudioDeviceHandler<S>> inactive_device_handler_ = nullptr;
     IAudioSink<S> *sink_;
@@ -29,12 +28,10 @@ template <typename S> class WasapiAudioSource
     bool active_ = true;
 
     std::unique_ptr<WasapiCapture<S>> capture_;
-    using ProcessAudioSource<S>::ProcessAudioSource;
 
 public:
     explicit WasapiAudioSource(AudioFormat format, IAudioSink<S> *sink, uint32_t pid, bool loopback)
-        : ProcessAudioSource<S>(),
-          sink_(sink),
+        : sink_(sink),
           format_(format),
           capture_(std::make_unique<WasapiCapture<S>>(format, 200000, this, pid, loopback)) {
         if (!loopback && pid != 0) {
@@ -46,6 +43,8 @@ public:
             no_signal_thread_ = std::thread(&WasapiAudioSource::NoSignalWathcer, this);
         }
     }
+
+    const AudioFormat &GetFormat() const override { return format_; }
 
     void NoSignalWathcer() {
         while (active_) {
@@ -78,12 +77,6 @@ public:
             last_signal_ = std::chrono::steady_clock::now();
         }
     }
-
-    void SetCallback(const ProcessAudioSource<S>::CallBackT cb) override {
-        throw std::runtime_error("Not implemented");
-    };
-
-    uint32_t GetPid() override { throw std::runtime_error("Not implemented"); }
 
     ~WasapiAudioSource() override {
         if (inactive_device_handler_) {

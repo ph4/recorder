@@ -14,7 +14,7 @@
 #include <opus.h>
 #include <spdlog/spdlog.h>
 
-#include "AudioSource.hpp"
+#include "audio_core.hpp"
 #include "RingBuffer.hpp"
 
 namespace recorder::audio {
