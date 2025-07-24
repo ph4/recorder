@@ -1,6 +1,3 @@
-//
-// Created by pavel on 15.03.2025.
-//
 #ifndef VELOPACK_MY_HPP
 #define VELOPACK_MY_HPP
 

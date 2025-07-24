@@ -1,9 +1,5 @@
-//
-// Created by pavel on 02.12.2024.
-//
+#pragma once
 
-#ifndef UTIL_HPP
-#define UTIL_HPP
 #include <windows.h>
 #include <format>
 #include <iostream>
@@ -52,5 +48,3 @@ struct CoInitializeGuard {
     }
     ~CoInitializeGuard() { CoUninitialize(); }
 };
-
-#endif // UTIL_HPP

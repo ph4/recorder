@@ -1,8 +1,4 @@
-//
-// Created by pavel on 16.12.2024.
-//
-#ifndef WIN_AUDIO_SOURCE_H
-#define WIN_AUDIO_SOURCE_H
+#pragma once
 
 #include <chrono>
 #include <memory>
@@ -95,4 +91,3 @@ public:
 template class WasapiAudioSource<int16_t>;
 
 } // namespace recorder::audio::windows
-#endif

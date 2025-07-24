@@ -1,8 +1,4 @@
-//
-// Created by pavel on 30.12.2024.
-//
-#ifndef CONTROLLER_HPP
-#define CONTROLLER_HPP
+#pragma once
 
 #include <memory>
 #include <mutex>
@@ -62,5 +58,3 @@ public:
     [[nodiscard]] models::Command GetGlobalCommand() const;
 };
 } // namespace recorder
-
-#endif // CONTROLLER_HPP

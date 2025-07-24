@@ -1,6 +1,3 @@
-//
-// Created by pavel on 31.12.2024.
-//
 #include <algorithm>
 #include <format>
 #include <map>

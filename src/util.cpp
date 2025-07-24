@@ -1,7 +1,3 @@
-//
-// Created by pavel on 27.12.2024.
-//
-
 #include "util.hpp"
 
 #include <wil/resource.h>

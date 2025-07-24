@@ -1,6 +1,3 @@
-//
-// Created by pavel on 22.03.2025.
-//
 #define INITGUID // Linker cant find guids for some reason now
 #include "Recorder.hpp"
 

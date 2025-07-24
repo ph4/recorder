@@ -1,6 +1,3 @@
-//
-// Created by pavel on 30.12.2024.
-//
 #include "controller.hpp"
 
 #include <mutex>

@@ -1,8 +1,4 @@
-//
-// Created by pavel on 22.12.2024.
-//
-#ifndef RING_BUFFER_H
-#define RING_BUFFER_H
+#pragma once
 
 #include <array>
 #include <cassert>
@@ -169,4 +165,3 @@ public:
 
 template <typename T, size_t ChunkFrames, size_t NChunks> using RingBuffer =
       InterleaveRingBuffer<T, 1, ChunkFrames, NChunks>;
-#endif

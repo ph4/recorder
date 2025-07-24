@@ -1,9 +1,4 @@
-//
-// Created by pavel on 02.12.2024.
-//
-
-#ifndef HWID_HPP
-#define HWID_HPP
+#pragma once
 
 #include <map>
 #include <string>
@@ -33,5 +28,3 @@ public:
 };
 
 std::string get_uuid();
-
-#endif // HWID_HPP

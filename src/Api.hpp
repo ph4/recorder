@@ -1,8 +1,4 @@
-//
-// Created by pavel on 02.12.2024.
-//
-#ifndef API_HPP
-#define API_HPP
+#pragma once
 
 #include <httplib.h>
 #include <rfl/Result.hpp>
@@ -48,4 +44,3 @@ public:
     rfl::Result<models::Command> SendStatus(const models::Status &status);
 };
 } // namespace recorder
-#endif // API_HPP

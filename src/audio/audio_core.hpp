@@ -1,8 +1,4 @@
-//
-// Created by pavel on 13.12.2024.
-//
-#ifndef AUDIO_AUDIO_SOURCE_H
-#define AUDIO_AUDIO_SOURCE_H
+#pragma once
 
 #include <optional>
 #include <span>
@@ -34,4 +30,3 @@ public:
 };
 
 } // namespace recorder::audio
-#endif

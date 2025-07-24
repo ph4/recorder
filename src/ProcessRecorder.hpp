@@ -1,8 +1,4 @@
-//
-// Created by pavel on 23.12.2024.
-//
-#ifndef PROCESSRECORDER_HPP
-#define PROCESSRECORDER_HPP
+#pragma once
 
 #include <chrono>
 #include <filesystem>
@@ -299,4 +295,3 @@ public:
 };
 
 } // namespace recorder
-#endif // PROCESSRECORDER_HPP

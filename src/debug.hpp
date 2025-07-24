@@ -1,6 +1,4 @@
-//
-// Created by pavel on 31.12.2024.
-//
+#pragma once
 
 #include <windows.h>
 

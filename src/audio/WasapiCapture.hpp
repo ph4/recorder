@@ -1,9 +1,4 @@
-//
-// Created by pavel on 11/21/2024.
-//
-
-#ifndef WINCAPTURE_H
-#define WINCAPTURE_H
+#pragma once
 
 #include <array>
 #include <functional>
@@ -296,4 +291,3 @@ public:
 };
 
 } // namespace recorder::audio::windows
-#endif // WINCAPTURE_H

@@ -1,8 +1,4 @@
-//
-// Created by pavel on 02.12.2024.
-//
-#ifndef MODELS_HPP
-#define MODELS_HPP
+#pragma once
 
 #include <optional>
 #include <rfl.hpp>
@@ -88,5 +84,3 @@ struct Command {
     CommandType type;
 };
 } // namespace recorder::models
-
-#endif // MODELS_HPP

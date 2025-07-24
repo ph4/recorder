@@ -1,8 +1,4 @@
-//
-// Created by pavel on 24.03.2025.
-//
-#ifndef AUDIODEVICEMONITOR_H
-#define AUDIODEVICEMONITOR_H
+#pragma once
 
 #include <atomic>
 #include <span>
@@ -140,4 +136,3 @@ private:
 };
 
 } // namespace recorder::audio
-#endif

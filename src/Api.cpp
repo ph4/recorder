@@ -1,6 +1,3 @@
-//
-// Created by pavel on 26.12.2024.
-//
 #include "Api.hpp"
 
 #include <httplib.h>

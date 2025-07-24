@@ -1,8 +1,4 @@
-//
-// Created by pavel on 25.12.2024.
-//
-#ifndef FILEUPLOADER_HPP
-#define FILEUPLOADER_HPP
+#pragma once
 
 #include <filesystem>
 #include <memory>
@@ -131,4 +127,3 @@ public:
     }
 };
 } // namespace recorder
-#endif // FILEUPLOADER_HPP

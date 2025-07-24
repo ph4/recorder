@@ -1,8 +1,4 @@
-//
-// Created by pavel on 22.03.2025.
-//
-#ifndef RECORDER_H
-#define RECORDER_H
+#pragma once
 
 #include <memory>
 #include <unordered_set>
@@ -53,4 +49,3 @@ public:
     bool ListenProcesses();
 };
 } // namespace recorder
-#endif

@@ -1,8 +1,4 @@
-//
-// Created by pavel on 04.12.2024.
-//
-#ifndef OGG_OPUS_ENCODER_H
-#define OGG_OPUS_ENCODER_H
+#pragma once
 
 #include <array>
 #include <memory>
@@ -219,4 +215,3 @@ private:
     }
 };
 } // namespace recorder::audio
-#endif

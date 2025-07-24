@@ -1,8 +1,4 @@
-//
-// Created by pavel on 31.12.2024.
-//
-#ifndef PROCESSLISTER_HPP
-#define PROCESSLISTER_HPP
+#pragma once
 
 #include <windows.h>
 #include <string>
@@ -38,4 +34,3 @@ private:
     static std::vector<DWORD> getRootProcesses(const std::vector<DWORD> &processIDs);
 };
 } // namespace recorder
-#endif // PROCESSLISTER_HPP
