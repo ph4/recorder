@@ -67,8 +67,8 @@ template <typename S> class ProcessRecorder
     std::unique_ptr<audio::ISignalActivityMonitor<S>> activity_monitor_ = nullptr;
 
     std::mutex write_mutex_{};
-    std::unique_ptr<IAudioSource<S>> mic_;
-    std::unique_ptr<IAudioSource<S>> process_;
+    std::unique_ptr<IAudioSource> mic_;
+    std::unique_ptr<IAudioSource> process_;
 
     std::thread encode_thread_{};
     std::condition_variable encode_condition_;

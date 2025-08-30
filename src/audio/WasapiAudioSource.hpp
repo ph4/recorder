@@ -12,7 +12,7 @@ using namespace recorder::audio;
 using namespace std::chrono;
 
 template <typename S> class WasapiAudioSource
-    : public IAudioSource<S>
+    : public IAudioSource
     , public IAudioSink<S> {
     std::unique_ptr<InactiveAudioDeviceHandler<S>> inactive_device_handler_ = nullptr;
     IAudioSink<S> *sink_;

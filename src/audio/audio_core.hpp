@@ -11,7 +11,7 @@ struct AudioFormat {
     uint32_t sampleRate;
 };
 
-template <typename S> class IAudioSource {
+class IAudioSource {
 public:
     virtual const AudioFormat& GetFormat() const = 0;
 };
