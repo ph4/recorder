@@ -34,14 +34,12 @@ template <typename S> class ActivityMonitorSilence : public ISignalActivityMonit
     bool active_ = false;
     int max_silence_seconds_;
     const audio::AudioFormat format_;
-    IActivityListener<S> *const listener_ = nullptr;
+    IStatusSink *const sink_ = nullptr;
     const size_t samples_per_sec = format_.sampleRate * format_.channels;
 
 public:
-    ActivityMonitorSilence(
-          IActivityListener<S> *listener, int max_silence_seconds, audio::AudioFormat format
-    )
-        : listener_(listener), max_silence_seconds_(max_silence_seconds), format_(format) {}
+    ActivityMonitorSilence(IStatusSink *sink, int max_silence_seconds, audio::AudioFormat format)
+        : sink_(sink), max_silence_seconds_(max_silence_seconds), format_(format) {}
     void OnNewPacket(std::span<S> packet) override {
         // Windows sometimes has samples with value of +-1 on silent streams
         auto has_signal =
@@ -52,13 +50,13 @@ public:
             SPDLOG_DEBUG("+Active");
             active_ = true;
             frames_silent_ = 0;
-            listener_->OnActive();
+            sink_->OnActive();
         } else if (active_ && !has_signal) {
             frames_silent_ += packet.size();
             if (frames_silent_ > samples_per_sec * max_silence_seconds_) {
                 SPDLOG_DEBUG("-Active");
                 active_ = false;
-                listener_->OnInactive();
+                sink_->OnInactive();
             }
         }
     };
@@ -66,7 +64,7 @@ public:
 
 template <typename S> class ActivityMonitorWhatsapp : public ISignalActivityMonitor<S> {
     wil::com_ptr<IAudioMeterInformation> meter_;
-    IActivityListener<S> *listener_;
+    IStatusSink *sink_;
     AudioFormat format_;
     bool active_ = false;
     int max_silence_seconds_ = 5;
@@ -135,10 +133,8 @@ template <typename S> class ActivityMonitorWhatsapp : public ISignalActivityMoni
     }
 
 public:
-    ActivityMonitorWhatsapp(
-          IActivityListener<S> *listener, AudioFormat format, int max_silence_seconds
-    )
-        : listener_(listener), format_(format), max_silence_seconds_(max_silence_seconds) {
+    ActivityMonitorWhatsapp(IStatusSink *sink, AudioFormat format, int max_silence_seconds)
+        : sink_(sink), format_(format), max_silence_seconds_(max_silence_seconds) {
         meter_ = GetAudioMeterByAppName(L"WhatsApp.exe");
         if (meter_ == nullptr) {
             throw std::runtime_error("WhatsApp not found");
@@ -165,14 +161,14 @@ public:
         if (!active_ && peak > threshold) {
             active_ = true;
             silent_for_seconds_ = 0;
-            listener_->OnActive();
+            sink_->OnActive();
         } else if (active_ && peak > threshold) {
             silent_for_seconds_ = 0;
         } else if (active_ && peak < threshold) {
             silent_for_seconds_ += (double)packet.size() / (format_.sampleRate * format_.channels);
             if (silent_for_seconds_ > max_silence_seconds_) {
                 active_ = false;
-                listener_->OnInactive();
+                sink_->OnInactive();
             }
         }
     };

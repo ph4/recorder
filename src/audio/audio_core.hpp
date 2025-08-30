@@ -22,11 +22,11 @@ public:
     virtual ~IAudioSinkTyped() = default;
 };
 
-template <typename S> class IActivityListener {
+class IStatusSink {
 public:
     virtual void OnInactive() = 0;
     virtual void OnActive(std::optional<std::string> metadata = std::nullopt) = 0;
-    virtual ~IActivityListener() = default;
+    virtual ~IStatusSink() = default;
 };
 
 } // namespace recorder::audio

@@ -44,12 +44,12 @@ struct File {
     time_point<system_clock> start_time;
 };
 
-using recorder::audio::IActivityListener;
 using recorder::audio::IActivityMonitor;
 using recorder::audio::IAudioSinkTyped;
+using recorder::audio::IStatusSink;
 template <typename S> class ProcessRecorder
     : public IAudioSinkTyped<S>
-    , public IActivityListener<S> {
+    , public IStatusSink {
     struct MicSink : public IAudioSinkTyped<S> {
         ProcessRecorder<S> *const recorder_;
         MicSink(ProcessRecorder<S> *const recorder) : recorder_(recorder) {}
