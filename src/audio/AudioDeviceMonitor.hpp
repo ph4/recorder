@@ -67,12 +67,12 @@ private:
     std::atomic<bool> has_active_device;
     wil::com_ptr<IMMDeviceEnumerator> enumerator;
     AudioFormat format;
-    IAudioSink<S>* sink;
+    IAudioSinkTyped<S>* sink;
     std::thread silent_thread;
     bool running;
 
 public:
-    InactiveAudioDeviceHandler(AudioFormat format, IAudioSink<S>* sink)
+    InactiveAudioDeviceHandler(AudioFormat format, IAudioSinkTyped<S>* sink)
         : notification_callback([this]() { UpdateActiveDeviceStatus(); }),
           has_active_device(false),
           format(format),

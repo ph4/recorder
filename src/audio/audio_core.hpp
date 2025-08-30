@@ -16,10 +16,10 @@ public:
     virtual const AudioFormat& GetFormat() const = 0;
 };
 
-template <typename S> class IAudioSink {
+template <typename S> class IAudioSinkTyped {
 public:
     virtual void OnNewPacket(std::span<S>) = 0;
-    virtual ~IAudioSink() = default;
+    virtual ~IAudioSinkTyped() = default;
 };
 
 template <typename S> class IActivityListener {

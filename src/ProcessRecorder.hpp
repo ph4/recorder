@@ -46,11 +46,11 @@ struct File {
 
 using recorder::audio::IActivityListener;
 using recorder::audio::IActivityMonitor;
-using recorder::audio::IAudioSink;
+using recorder::audio::IAudioSinkTyped;
 template <typename S> class ProcessRecorder
-    : public IAudioSink<S>
+    : public IAudioSinkTyped<S>
     , public IActivityListener<S> {
-    struct MicSink : public IAudioSink<S> {
+    struct MicSink : public IAudioSinkTyped<S> {
         ProcessRecorder<S> *const recorder_;
         MicSink(ProcessRecorder<S> *const recorder) : recorder_(recorder) {}
 

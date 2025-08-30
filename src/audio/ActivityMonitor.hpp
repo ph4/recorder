@@ -25,7 +25,7 @@ template <typename S, bool SignalAware> class IActivityMonitor {};
 
 template <typename S> class ISignalActivityMonitor
     : public IActivityMonitor<S, true>
-    , public IAudioSink<S> {};
+    , public IAudioSinkTyped<S> {};
 
 template <typename S> class ActvityMonitorNull : public IActivityMonitor<S, false> {};
 

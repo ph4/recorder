@@ -13,9 +13,9 @@ using namespace std::chrono;
 
 template <typename S> class WasapiAudioSource
     : public IAudioSource
-    , public IAudioSink<S> {
+    , public IAudioSinkTyped<S> {
     std::unique_ptr<InactiveAudioDeviceHandler<S>> inactive_device_handler_ = nullptr;
-    IAudioSink<S> *sink_;
+    IAudioSinkTyped<S> *sink_;
     AudioFormat format_;
 
     std::mutex time_mutex_;
@@ -26,7 +26,9 @@ template <typename S> class WasapiAudioSource
     std::unique_ptr<WasapiCapture<S>> capture_;
 
 public:
-    explicit WasapiAudioSource(AudioFormat format, IAudioSink<S> *sink, uint32_t pid, bool loopback)
+    explicit WasapiAudioSource(
+          AudioFormat format, IAudioSinkTyped<S> *sink, uint32_t pid, bool loopback
+    )
         : sink_(sink),
           format_(format),
           capture_(std::make_unique<WasapiCapture<S>>(format, 200000, this, pid, loopback)) {

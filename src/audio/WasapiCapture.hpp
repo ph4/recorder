@@ -73,8 +73,7 @@ private:
 
     wil::unique_couninitialize_call couninit{wil::CoInitializeEx()};
 
-    // CallBackT callback_;
-    IAudioSink<S> *listener_;
+    IAudioSinkTyped<S> *listener_;
     const uint32_t pid_;
     const bool is_loopback_;
     const WAVEFORMATEX format_{};
@@ -257,7 +256,7 @@ public:
           const recorder::audio::AudioFormat format,
           const uint32_t buffer_size_ns,
           // const CallBackT &callback,
-          IAudioSink<S> *listener,
+          IAudioSinkTyped<S> *listener,
           const DWORD pid,
           bool is_loopback
     )
